@@ -1,11 +1,36 @@
 # GitHub Milestones
 
-## Geplanter Milestone
+## Geplante Milestones
 
 ### M1 - Core Setup und Auth
 
 Beschreibung:
 Basisprojekt, Monorepo-Struktur, Docker-Setup, GitHub Actions, Dokumentation, Nutzerverwaltung-Grundgeruest
+
+### M2 - Kanban
+
+Beschreibung:
+Grundlagen fuer Aufgabenverwaltung, Board-Struktur, Spaltenmodell und Statuslogik
+
+### M3 - Einkauf und Vorrat
+
+Beschreibung:
+Grundlagen fuer Einkaufslisten, Vorratslisten, Artikelstatus und Verbrauchsdokumentation
+
+### M4 - Kalender und iCal
+
+Beschreibung:
+Grundlagen fuer Terminverwaltung, Haushaltsbezug und spaetere iCal-Integration
+
+### M5 - Core Erweiterungen
+
+Beschreibung:
+Querschnittserweiterungen fuer Benachrichtigungen, Einladungen und Echtzeit-Synchronisation
+
+### M6 - Deployment und Releasevorbereitung
+
+Beschreibung:
+Vorbereitung fuer Deployment, Build-Release-Prozess und technische Auslieferung
 
 ## Kopierbare `gh`-Befehle
 
@@ -22,5 +47,9 @@ gh label create kalender --color 006b75 --description "Kalender-Modul"
 gh label create core --color bfd4f2 --description "Gemeinsame Kernlogik"
 
 gh api repos/:owner/:repo/milestones -f title='M1 - Core Setup und Auth' -f description='Basisprojekt, Monorepo-Struktur, Docker-Setup, GitHub Actions, Dokumentation, Nutzerverwaltung-Grundgeruest'
+gh api repos/:owner/:repo/milestones -f title='M2 - Kanban' -f description='Grundlagen fuer Aufgabenverwaltung, Board-Struktur, Spaltenmodell und Statuslogik'
+gh api repos/:owner/:repo/milestones -f title='M3 - Einkauf und Vorrat' -f description='Grundlagen fuer Einkaufslisten, Vorratslisten, Artikelstatus und Verbrauchsdokumentation'
+gh api repos/:owner/:repo/milestones -f title='M4 - Kalender und iCal' -f description='Grundlagen fuer Terminverwaltung, Haushaltsbezug und spaetere iCal-Integration'
+gh api repos/:owner/:repo/milestones -f title='M5 - Core Erweiterungen' -f description='Querschnittserweiterungen fuer Benachrichtigungen, Einladungen und Echtzeit-Synchronisation'
+gh api repos/:owner/:repo/milestones -f title='M6 - Deployment und Releasevorbereitung' -f description='Vorbereitung fuer Deployment, Build-Release-Prozess und technische Auslieferung'
 ```
-
