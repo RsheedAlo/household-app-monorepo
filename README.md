@@ -25,6 +25,13 @@ docker-compose.yml     Lokale Entwicklungsumgebung
 
 ## Lokaler Start
 
+### 1. Umgebungsvariablen (WICHTIG)
+Erstelle eine `.env` Datei im Ordner `backend/` mit folgendem Inhalt:
+```env
+SUPABASE_URL="DEINE_SUPABASE_PROJEKT_URL"
+SUPABASE_KEY="DEIN_SUPABASE_ANON_KEY"
+```
+
 ### Docker Compose
 
 ```bash
@@ -45,6 +52,8 @@ Backend:
 
 ```bash
 cd backend
+python -m venv venv
+# Windows: venv\Scripts\activate | Mac/Linux: source venv/bin/activate
 pip install -e .[dev]
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
