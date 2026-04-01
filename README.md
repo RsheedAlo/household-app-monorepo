@@ -1,3 +1,4 @@
+![CI Status](https://github.com/RsheedAlo/household-app-monorepo/actions/workflows/ci.yml/badge.svg)
 # household-app-monorepo
 
 Monorepo-Grundgeruest fuer eine Haushaltsapp als Webanwendung/PWA mit React im Frontend und FastAPI im Backend.
