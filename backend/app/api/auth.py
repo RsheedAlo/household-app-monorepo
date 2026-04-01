@@ -44,7 +44,7 @@ def login(credentials: UserCredentials):
             "access_token": response.session.access_token,
             "token_type": "bearer"
         }
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=401, detail="Falsche E-Mail oder Passwort")
 
 @router.get("/me", summary="Eigene Nutzerdaten abrufen")
