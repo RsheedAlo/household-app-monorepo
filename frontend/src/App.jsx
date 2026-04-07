@@ -1,46 +1,69 @@
-const modules = [
-  {
-    prefix: "[Kanban]",
-    title: "Aufgaben und Planung",
-    description: "Platzhalter fuer Board-Struktur, Spalten und Aufgabenverwaltung.",
-  },
-  {
-    prefix: "[Einkauf/Vorrat]",
-    title: "Einkauf und Vorrat",
-    description: "Platzhalter fuer Listen, Artikelstatus und Vorratsuebersicht.",
-  },
-  {
-    prefix: "[Kalender]",
-    title: "Kalender und Termine",
-    description: "Platzhalter fuer Terminverwaltung und spaetere iCal-Integration.",
-  },
-];
+import { useState, useEffect } from 'react'
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import Dashboard from './pages/Dashboard';
+import Login from './pages/Login';
+import Register from './pages/Register';
 
 export default function App() {
-  return (
-    <main className="app-shell">
-      <section className="hero">
-        <p className="eyebrow">[Core] Monorepo Basis</p>
-        <h1>household-app-monorepo</h1>
-        <p className="lead">
-          Technisches Grundgeruest fuer eine Haushaltsapp als React/FastAPI/PWA-Projekt.
-        </p>
-      </section>
+    // Globaler State, der sich merkt, ob jemand eingeloggt ist
+    const [userId, setUserId] = useState(localStorage.getItem('userId') || null);
 
-      <section className="grid">
-        {modules.map((module) => (
-          <article key={module.prefix} className="card">
-            <p className="prefix">{module.prefix}</p>
-            <h2>{module.title}</h2>
-            <p>{module.description}</p>
-          </article>
-        ))}
-      </section>
+    useEffect(() => {
+        if (userId) {
+            localStorage.setItem('userId', userId);
+        } else {
+            localStorage.removeItem('userId');
+        }
+    }, [userId]);
 
-      <section className="footnote">
-        <p>[Auth] und [DevOps] werden in dieser Phase nur als Grundstruktur vorbereitet.</p>
-      </section>
-    </main>
-  );
+    return (
+        <Router>
+            <div style={{ fontFamily: 'sans-serif', color: '#333' }}>
+
+                {/* --- DIE NAVBAR --- */}
+                <header style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '15px 30px',
+                    borderBottom: '1px solid #ddd',
+                    background: '#fff'
+                }}>
+                    {/* Platzhalter links, damit der Titel perfekt in der Mitte sitzt */}
+                    <div style={{ width: '50px' }}></div>
+
+                    <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 'bold' }}>
+                        <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>Household App</Link>
+                    </h1>
+
+                    {/* Anmelde-Icon rechts */}
+                    <div style={{ width: '50px', textAlign: 'right' }}>
+                        {userId ? (
+                            <span
+                                onClick={() => setUserId(null)}
+                                style={{ cursor: 'pointer', fontSize: '1.2rem' }}
+                                title="Abmelden"
+                            >
+                                🚪
+                            </span>
+                        ) : (
+                            <Link to="/login" style={{ textDecoration: 'none', fontSize: '1.5rem' }} title="Anmelden">
+                                👤
+                            </Link>
+                        )}
+                    </div>
+                </header>
+
+                {/* --- DER BODY (Hier werden die Seiten geladen) --- */}
+                <main style={{ maxWidth: '1000px', margin: '0 auto', padding: '20px' }}>
+                    <Routes>
+                        <Route path="/" element={<Dashboard userId={userId} />} />
+                        <Route path="/login" element={<Login setUserId={setUserId} />} />
+                        <Route path="/register" element={<Register setUserId={setUserId} />} />
+                    </Routes>
+                </main>
+
+            </div>
+        </Router>
+    );
 }
-

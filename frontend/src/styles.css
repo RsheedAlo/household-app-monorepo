@@ -1,9 +1,6 @@
 :root {
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   color: #102038;
-  background:
-    radial-gradient(circle at top left, rgba(28, 133, 255, 0.18), transparent 28%),
-    linear-gradient(180deg, #f4f8fc 0%, #eef3f7 100%);
   line-height: 1.5;
   font-weight: 400;
 }
@@ -12,9 +9,19 @@
   box-sizing: border-box;
 }
 
-body {
+html, body {
+  /* Das zwingt die Seite, IMMER mindestens die volle Fensterhöhe einzunehmen */
+  min-height: 100vh;
   margin: 0;
+  padding: 0;
+}
+
+body {
   min-width: 320px;
+  /* Hintergrund hier in den Body: */
+  background: linear-gradient(180deg, #ffffff 0%, #e8f1f8 100%) no-repeat;
+  background-size: cover;
+  background-attachment: fixed; /* <-- Das verhindert das Abbrechen endgültig! */
 }
 
 .app-shell {

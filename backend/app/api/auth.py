@@ -12,6 +12,7 @@ class UserCredentials(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    user_id: str
 
 @router.post("/signup", summary="Benutzer registrieren")
 def signup(credentials: UserCredentials, display_name: str):
@@ -58,7 +59,8 @@ def login(credentials: UserCredentials):
 
         return {
             "access_token": response.session.access_token,
-            "token_type": "bearer"
+            "token_type": "bearer",
+            "user_id": response.user.id
         }
     except Exception:
         raise HTTPException(status_code=401, detail="Falsche E-Mail oder Passwort")
