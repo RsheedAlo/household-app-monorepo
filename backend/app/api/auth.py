@@ -14,7 +14,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 @router.post("/signup", summary="Benutzer registrieren")
-def signup(credentials: UserCredentials):
+def signup(credentials: UserCredentials, display_name: str):
     """Registriert einen neuen Benutzer"""
     try:
         # Supabase Hashed und Speichert
@@ -23,12 +23,22 @@ def signup(credentials: UserCredentials):
             "password": credentials.password
         })
 
+        if not response.user:
+            raise HTTPException(status_code=400, detail="Registrierung fehlgeschlagen")
+
+        user_id = response.user.id
+
+        profile_response = supabase.table("profiles").insert({
+                    "id": user_id,
+                    "display_name": display_name
+        }).execute()
+
         return {
             "message": "Benutzer erfolgreich registriert!",
             "user_id": response.user.id if response.user else None
         }
     except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/login", response_model=TokenResponse, summary="Benutzer Login")
 def login(credentials: UserCredentials):
