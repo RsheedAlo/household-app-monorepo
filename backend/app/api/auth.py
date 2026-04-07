@@ -33,7 +33,7 @@ def signup(credentials: UserCredentials, display_name: str):
                     "display_name": display_name
         }).execute()
 
-        if not profile_res.data:
+        if not profile_response.data:
             raise HTTPException(
                 status_code=500,
                 detail="User wurde angelegt, aber Profil-Erstellung ist fehlgeschlagen."
