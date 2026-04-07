@@ -33,3 +33,28 @@ def create_household(household_in: HouseholdCreate, user_id: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Datenbankfehler: {str(e)}")
+
+@router.get("/user/{user_id}")
+def get_user_households(user_id: str):
+    """Holt alle Haushalte, in denen der User Mitglied ist."""
+    try:
+       res = supabase.table("household_members") \
+            .select("role, households(id, name)") \
+            .eq("user_id", user_id) \
+            .execute()
+
+       if not res.data:
+           return []
+
+       my_households = []
+       for item in res.data:
+           if item.get("households"):
+                my_households.append({
+                    "id": item["households"]["id"],
+                    "name": item["households"]["name"],
+                    "role": item["role"]
+                })
+
+       return my_households
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fehler beim Laden der Haushalte: {str(e)}")

@@ -65,8 +65,8 @@ def login(credentials: UserCredentials):
     except Exception:
         raise HTTPException(status_code=401, detail="Falsche E-Mail oder Passwort")
 
-@router.get("/me", summary="Eigene Nutzerdaten abrufen")
-def get_my_profile(user = Depends(get_current_user)):
+@router.get("/me", summary="Eigenen Token abrufen")
+def get_my_token(user = Depends(get_current_user)):
     """
     Geschützter Endpunkt zur Überprüfung von Token.
     """
@@ -75,3 +75,17 @@ def get_my_profile(user = Depends(get_current_user)):
         "user_id": user.id,
         "email": user.email
     }
+
+@router.get("/profile/{user_id}", summary="Benutzerprofil abrufen")
+def get_profile(user_id: str):
+    """Holt das Profil eines Users anhand seiner ID."""
+    try:
+        response = supabase.table("profiles").select("display_name").eq("id", user_id).execute()
+
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Profil nicht gefunden")
+
+        return response.data[0]
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

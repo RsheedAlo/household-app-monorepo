@@ -1,4 +1,6 @@
 import { Link } from "react-router-dom";
+import { useState, useEffect } from 'react'
+import { API_URL } from "../config";
 
 const modules = [
     { prefix: "[Kanban]", title: "Aufgaben & Planung", description: "Platzhalter für Board-Struktur." },
@@ -8,6 +10,29 @@ const modules = [
 
 export default function Dashboard({ userId }) {
     console.log("Das Dashboard sieht diese User-ID:", userId);
+
+    const [userName, setUserName] = useState("");
+
+    useEffect(() => {
+        if (userId) {
+            const fetchProfile = async () => {
+                try {
+                    const response = await fetch(`${API_URL}/auth/profile/${userId}`);
+                    const data = await response.json();
+                    if (response.ok) {
+                        setUserName(data.display_name);
+                    }
+                } catch (error) {
+                    console.error("Fehler beim Laden des Profils");
+                }
+            };
+
+            fetchProfile();
+        } else {
+            setUserName("");
+        }
+    }, [userId]);
+
     return (
         <div className="dashboard">
             <section className="hero" style={{ textAlign: 'center', padding: '40px 20px' }}>
@@ -18,7 +43,7 @@ export default function Dashboard({ userId }) {
                         <p style={{ color: '#666' }}>Melde dich an, um deine WGs und Familien zu verwalten.</p>
                     </>
                 ) : (
-                    <h2 style={{ fontSize: '2rem', marginBottom: '10px' }}>Willkommen zurück!</h2>
+                    <h2 style={{ fontSize: '2rem', marginBottom: '10px' }}>Willkommen zurück{userName ? `, ${userName}` : ''}!</h2>
                 )}
             </section>
 
