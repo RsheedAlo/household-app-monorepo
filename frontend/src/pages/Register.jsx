@@ -1,53 +1,108 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-const API_URL = "http://localhost:8000"; // Prüfe deinen Port!
+import { API_URL } from "../config";
 
 export default function Register({ setUserId }) {
     const [displayName, setDisplayName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [message, setMessage] = useState("");
-    const navigate = useNavigate(); // Um den User nach Erfolg weiterzuleiten
+    const [error, setError] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
 
-    const handleSignup = async (e) => {
-        e.preventDefault();
-        setMessage("Lade...");
+    const navigate = useNavigate();
+
+    const handleSignup = async (event) => {
+        event.preventDefault();
+        setIsLoading(true);
+        setError("");
+
         try {
-            const response = await fetch(`${API_URL}/auth/signup?display_name=${encodeURIComponent(displayName)}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
+            const response = await fetch(
+                `${API_URL}/auth/signup?display_name=${encodeURIComponent(displayName)}`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, password }),
+                },
+            );
             const data = await response.json();
 
             if (response.ok) {
                 setUserId(data.user_id);
-                // Später leiten wir hier zur Haushalts-Gründung weiter, für jetzt ab aufs Dashboard
                 navigate("/");
-            } else {
-                setMessage("Fehler: " + data.detail);
+                return;
             }
-        } catch (error) {
-            setMessage("Netzwerkfehler.");
+
+            if (Array.isArray(data.detail)) {
+                setError(data.detail[0]?.msg || "Registrierung fehlgeschlagen.");
+            } else {
+                setError(data.detail || "Registrierung fehlgeschlagen.");
+            }
+        } catch {
+            setError("Netzwerkfehler beim Registrieren.");
+        } finally {
+            setIsLoading(false);
         }
     };
 
     return (
-        <div style={{ maxWidth: '400px', margin: '60px auto', textAlign: 'center' }}>
-            <h2>Neues Konto erstellen</h2>
-            {message && <p style={{ color: 'red' }}>{message}</p>}
+        <div className="auth-layout">
+            <section className="auth-card">
+                <p className="section-kicker">[Auth]</p>
+                <h2 className="auth-card__title">Konto erstellen</h2>
+                <p className="auth-card__copy">
+                    Lege ein neues Konto an, um Haushalten beizutreten, Einladungen anzunehmen oder selbst Haushalte zu gruenden.
+                </p>
 
-            <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '20px' }}>
-                <input type="text" placeholder="Dein Name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} required style={{ padding: '10px' }} />
-                <input type="email" placeholder="E-Mail" value={email} onChange={(e) => setEmail(e.target.value)} required style={{ padding: '10px' }}/>
-                <input type="password" placeholder="Passwort" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ padding: '10px' }}/>
-                <button type="submit" style={{ padding: '12px', background: '#333', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Registrieren</button>
-            </form>
+                {error && <p className="message-banner message-banner--error">{error}</p>}
 
-            <p style={{ marginTop: '20px' }}>
-                Du hast schon ein Konto? <Link to="/login" style={{ color: '#0070f3' }}>Zum Login</Link>
-            </p>
+                <form onSubmit={handleSignup} className="auth-form">
+                    <label className="form-field">
+                        <span>Anzeigename</span>
+                        <input
+                            type="text"
+                            placeholder="Dein Name"
+                            value={displayName}
+                            onChange={(event) => setDisplayName(event.target.value)}
+                            required
+                            className="text-input"
+                        />
+                    </label>
+
+                    <label className="form-field">
+                        <span>E-Mail</span>
+                        <input
+                            type="email"
+                            placeholder="name@example.com"
+                            value={email}
+                            onChange={(event) => setEmail(event.target.value)}
+                            required
+                            className="text-input"
+                        />
+                    </label>
+
+                    <label className="form-field">
+                        <span>Passwort</span>
+                        <input
+                            type="password"
+                            placeholder="Passwort"
+                            value={password}
+                            onChange={(event) => setPassword(event.target.value)}
+                            required
+                            className="text-input"
+                        />
+                    </label>
+
+                    <button type="submit" disabled={isLoading} className="button-primary button-primary--full">
+                        {isLoading ? "Erstelle Konto..." : "Registrieren"}
+                    </button>
+                </form>
+
+                <p className="auth-card__footer">
+                    Du hast schon ein Konto? <Link to="/login">Zum Login</Link>
+                </p>
+            </section>
         </div>
     );
 }

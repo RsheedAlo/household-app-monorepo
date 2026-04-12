@@ -1,27 +1,28 @@
-import {useState, useEffect} from 'react'
-import {BrowserRouter as Router, Routes, Route, Link} from 'react-router-dom';
-import Dashboard from './pages/Dashboard';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import HouseholdSettings from './pages/HouseholdSettings';
-import HouseholdsOverview from './pages/HouseholdsOverview';
-import {API_URL} from "./config";
+import { useEffect, useState } from "react";
+import { BrowserRouter as Router, Link, Route, Routes } from "react-router-dom";
+
+import { API_URL } from "./config";
+import Dashboard from "./pages/Dashboard";
+import HouseholdSettings from "./pages/HouseholdSettings";
+import HouseholdsOverview from "./pages/HouseholdsOverview";
+import Login from "./pages/Login";
+import Notifications from "./pages/Notifications";
+import Register from "./pages/Register";
 
 export default function App() {
-    // Globaler State, der sich merkt, ob jemand eingeloggt ist
-    const [userId, setUserId] = useState(localStorage.getItem('userId') || null);
-
+    const [userId, setUserId] = useState(localStorage.getItem("userId") || null);
     const [households, setHouseholds] = useState([]);
     const [activeHousehold, setActiveHousehold] = useState(
-        JSON.parse(localStorage.getItem('activeHousehold')) || null
+        JSON.parse(localStorage.getItem("activeHousehold")) || null,
     );
+    const [notificationCount, setNotificationCount] = useState(0);
 
     useEffect(() => {
         if (userId) {
-            localStorage.setItem('userId', userId);
+            localStorage.setItem("userId", userId);
             loadHouseholds(userId);
         } else {
-            localStorage.removeItem('userId');
+            localStorage.removeItem("userId");
             setHouseholds([]);
             setActiveHousehold(null);
         }
@@ -29,11 +30,34 @@ export default function App() {
 
     useEffect(() => {
         if (activeHousehold) {
-            localStorage.setItem('activeHousehold', JSON.stringify(activeHousehold));
+            localStorage.setItem("activeHousehold", JSON.stringify(activeHousehold));
         } else {
-            localStorage.removeItem('activeHousehold');
+            localStorage.removeItem("activeHousehold");
         }
     }, [activeHousehold]);
+
+    useEffect(() => {
+        const run = async () => {
+            if (!userId) {
+                setNotificationCount(0);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/households/invites/user/${userId}`);
+                const data = await response.json();
+                if (response.ok) {
+                    setNotificationCount(data.length);
+                } else {
+                    setNotificationCount(0);
+                }
+            } catch {
+                setNotificationCount(0);
+            }
+        };
+
+        run();
+    }, [userId]);
 
     const loadHouseholds = async (id) => {
         try {
@@ -42,7 +66,6 @@ export default function App() {
                 const data = await response.json();
                 setHouseholds(data);
 
-                // Wenn noch kein aktiver Haushalt gewählt ist (und wir welche haben), nimm einfach den ersten
                 if (data.length > 0 && !activeHousehold) {
                     setActiveHousehold(data[0]);
                 }
@@ -54,85 +77,100 @@ export default function App() {
 
     return (
         <Router>
-            <div style={{fontFamily: 'sans-serif', color: '#333'}}>
-
-                {/* --- NAVBAR --- */}
-                <header style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '15px 30px',
-                    borderBottom: '1px solid #ddd',
-                    background: '#fff'
-                }}>
-                    <div style={{width: '250px'}}>
-                        <h1 style={{margin: 0, fontSize: '1.5rem', fontWeight: 'bold'}}>
-                            <Link to="/" style={{textDecoration: 'none', color: 'inherit'}}>Household App</Link>
-                        </h1>
+            <div className="app-frame">
+                <header className="topbar">
+                    <div className="topbar__brand">
+                        <Link to="/" className="brand-link">
+                            Household App
+                        </Link>
+                        <p className="brand-subtitle">Gemeinsame Haushalte klar verwalten.</p>
                     </div>
 
-                    <div style={{flex: 1, display: 'flex', justifyContent: 'center'}}>
-                        {userId && households.length > 0 && (
-                            <select
-                                value={activeHousehold?.id || ""}
-                                onChange={(e) => {
-                                    const selected = households.find(h => h.id === e.target.value);
-                                    setActiveHousehold(selected);
-                                }}
-                                style={{
-                                    padding: '8px 15px',
-                                    borderRadius: '20px',
-                                    border: '1px solid #ccc',
-                                    background: '#f8f9fa',
-                                    fontWeight: 'bold',
-                                    cursor: 'pointer',
-                                    fontSize: '1rem'
-                                }}
-                            >
-                                {households.map(h => (
-                                    <option key={h.id} value={h.id}>{h.name}</option>
-                                ))}
-                            </select>
-                        )}
-                        {userId && households.length === 0 && (
-                            <span style={{color: '#888'}}>Kein Haushalt gefunden</span>
-                        )}
-                    </div>
-
-                    {/* RECHTS: Icons */}
-                    <div style={{width: '250px', display: 'flex', justifyContent: 'flex-end', gap: '15px'}}>
+                    <nav className="topbar__nav" aria-label="Hauptnavigation">
                         {userId ? (
                             <>
-                                <Link to="/households" style={{ textDecoration: 'none', fontSize: '1.3rem' }} title="Meine Haushalte">🏡</Link>
-                                <Link to="/settings" style={{textDecoration: 'none', fontSize: '1.3rem'}}
-                                      title="Haushalt verwalten">⚙️</Link>
-                                <span onClick={() => setUserId(null)} style={{cursor: 'pointer', fontSize: '1.3rem'}}
-                                      title="Abmelden">🚪</span>
+                                <Link to="/" className="nav-link">
+                                    Dashboard
+                                </Link>
+                                <Link to="/households" className="nav-link">
+                                    Haushalte
+                                </Link>
+                                <Link to="/settings" className="nav-link nav-link--primary">
+                                    Verwalten
+                                </Link>
+                                <Link to="/notifications" className="nav-link nav-link--inbox" title="Benachrichtigungen">
+                                    <span className="bell-icon" aria-hidden="true">🔔</span>
+                                    {notificationCount > 0 && <span className="nav-dot" aria-hidden="true" />}
+                                </Link>
+                                <button type="button" onClick={() => setUserId(null)} className="nav-link nav-link--ghost">
+                                    Abmelden
+                                </button>
                             </>
                         ) : (
-                            <Link to="/login" style={{textDecoration: 'none', fontSize: '1.5rem'}}
-                                  title="Anmelden">👤</Link>
+                            <>
+                                <Link to="/" className="nav-link">
+                                    Start
+                                </Link>
+                                <Link to="/login" className="nav-link nav-link--primary">
+                                    Anmelden
+                                </Link>
+                            </>
                         )}
-                    </div>
+                    </nav>
                 </header>
 
-                {/* --- DER BODY (Hier werden die Seiten geladen) --- */}
-                <main style={{maxWidth: '1000px', margin: '0 auto', padding: '20px'}}>
+                <main className="page-shell">
                     <Routes>
-                        <Route path="/" element={<Dashboard userId={userId}/>}/>
-                        <Route path="/login" element={<Login setUserId={setUserId}/>}/>
-                        <Route path="/register" element={<Register setUserId={setUserId}/>}/>
-                        <Route path="/settings" element={<HouseholdSettings userId={userId}/>}/>
-                        <Route path="/households" element={
-                            <HouseholdsOverview
-                                userId={userId}
-                                households={households}
-                                refreshHouseholds={loadHouseholds}
-                                setActiveHousehold={setActiveHousehold}
-                            />} />
+                        <Route
+                            path="/"
+                            element={
+                                <Dashboard
+                                    userId={userId}
+                                    households={households}
+                                    activeHousehold={activeHousehold}
+                                    setActiveHousehold={setActiveHousehold}
+                                    refreshHouseholds={loadHouseholds}
+                                />
+                            }
+                        />
+                        <Route
+                            path="/notifications"
+                            element={
+                                <Notifications
+                                    userId={userId}
+                                    refreshHouseholds={loadHouseholds}
+                                    setNotificationCount={setNotificationCount}
+                                />
+                            }
+                        />
+                        <Route path="/login" element={<Login setUserId={setUserId} />} />
+                        <Route path="/register" element={<Register setUserId={setUserId} />} />
+                        <Route
+                            path="/settings"
+                            element={
+                                <HouseholdSettings
+                                    userId={userId}
+                                    activeHousehold={activeHousehold}
+                                    households={households}
+                                    refreshHouseholds={loadHouseholds}
+                                    setActiveHousehold={setActiveHousehold}
+                                />
+                            }
+                        />
+                        <Route
+                            path="/households"
+                            element={
+                                <HouseholdsOverview
+                                    userId={userId}
+                                    households={households}
+                                    activeHousehold={activeHousehold}
+                                    refreshHouseholds={loadHouseholds}
+                                    setActiveHousehold={setActiveHousehold}
+                                />
+                            }
+                        />
                     </Routes>
                 </main>
-
             </div>
         </Router>
     );
