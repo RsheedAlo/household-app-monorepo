@@ -25,3 +25,8 @@ Thumbs.db
 
 # Packaging
 *.egg-info/
+
+# Local AI workflow artifacts (do not commit in this repository)
+AGENTS.md
+.aidlc-rule-details/
+docs/ai/

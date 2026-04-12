@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+
 import { API_URL } from "../config";
 
 export default function Login({ setUserId }) {
@@ -10,74 +11,83 @@ export default function Login({ setUserId }) {
 
     const navigate = useNavigate();
 
-    const handleLogin = async (e) => {
-        e.preventDefault();
+    const handleLogin = async (event) => {
+        event.preventDefault();
         setIsLoading(true);
         setError("");
 
         try {
             const response = await fetch(`${API_URL}/auth/login`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({email, password})
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, password }),
             });
 
             const data = await response.json();
 
-            console.log("Das sagt das Backend:", data);
-
             if (response.ok) {
                 setUserId(data.user_id);
                 navigate("/");
-            } else {
-                if (Array.isArray(data.detail)) {
-                    setError(data.detail[0].msg);
-                } else {
-                    setError(data.detail || "Login fehlgeschlagen.");
-                }
-                setIsLoading(false);
+                return;
             }
-        } catch (err) {
-            setError("Netzwerkfehler. Läuft das Backend?");
+
+            if (Array.isArray(data.detail)) {
+                setError(data.detail[0]?.msg || "Login fehlgeschlagen.");
+            } else {
+                setError(data.detail || "Login fehlgeschlagen.");
+            }
+        } catch {
+            setError("Netzwerkfehler. Laeuft das Backend?");
+        } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div style={{ maxWidth: '400px', margin: '60px auto', textAlign: 'center' }}>
-            <h2>Anmelden</h2>
+        <div className="auth-layout">
+            <section className="auth-card">
+                <p className="section-kicker">[Auth]</p>
+                <h2 className="auth-card__title">Anmelden</h2>
+                <p className="auth-card__copy">
+                    Melde dich mit deinem bestehenden Konto an, um auf Haushalte, Einladungen und Verwaltungsaktionen zuzugreifen.
+                </p>
 
-            {error && <p style={{ color: 'red', background: '#ffe6e6', padding: '10px', borderRadius: '5px' }}>{error}</p>}
+                {error && <p className="message-banner message-banner--error">{error}</p>}
 
-            <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '20px' }}>
-                <input
-                    type="email"
-                    placeholder="E-Mail"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    style={{ padding: '10px' }}
-                />
-                <input
-                    type="password"
-                    placeholder="Passwort"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    style={{ padding: '10px' }}
-                />
-                <button
-                    type="submit"
-                    disabled={isLoading}
-                    style={{ padding: '12px', background: isLoading ? '#ccc' : '#333', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                >
-                    {isLoading ? "Lade..." : "Login"}
-                </button>
-            </form>
+                <form onSubmit={handleLogin} className="auth-form">
+                    <label className="form-field">
+                        <span>E-Mail</span>
+                        <input
+                            type="email"
+                            placeholder="name@example.com"
+                            value={email}
+                            onChange={(event) => setEmail(event.target.value)}
+                            required
+                            className="text-input"
+                        />
+                    </label>
 
-            <p style={{ marginTop: '20px' }}>
-                Noch nicht registriert? <Link to="/register" style={{ color: '#0070f3' }}>Hier Konto erstellen</Link>
-            </p>
+                    <label className="form-field">
+                        <span>Passwort</span>
+                        <input
+                            type="password"
+                            placeholder="Passwort"
+                            value={password}
+                            onChange={(event) => setPassword(event.target.value)}
+                            required
+                            className="text-input"
+                        />
+                    </label>
+
+                    <button type="submit" disabled={isLoading} className="button-primary button-primary--full">
+                        {isLoading ? "Lade..." : "Anmelden"}
+                    </button>
+                </form>
+
+                <p className="auth-card__footer">
+                    Noch nicht registriert? <Link to="/register">Konto erstellen</Link>
+                </p>
+            </section>
         </div>
     );
 }
