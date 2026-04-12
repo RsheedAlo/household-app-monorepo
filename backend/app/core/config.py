@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     #Supabase Credentials
     SUPABASE_URL: str
     SUPABASE_KEY: str
-    SUPABASE_SERVICE_ROLE_KEY: str
+    SUPABASE_SERVICE_ROLE_KEY: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

@@ -20,10 +20,21 @@ from app.models.core import (
 router = APIRouter()
 
 
+def require_supabase_admin():
+    """Stellt sicher, dass ein Supabase-Admin-Client verfuegbar ist."""
+    if supabase_admin is None:
+        raise HTTPException(
+            status_code=503,
+            detail="SUPABASE_SERVICE_ROLE_KEY ist nicht konfiguriert",
+        )
+    return supabase_admin
+
+
 def get_auth_email_for_user(user_id: str) -> str:
     """Liest die Auth-E-Mail eines Users ueber den Supabase-Admin-Client."""
+    admin_client = require_supabase_admin()
     try:
-        response = supabase_admin.auth.admin.get_user_by_id(user_id)
+        response = admin_client.auth.admin.get_user_by_id(user_id)
         email = getattr(response.user, "email", None)
         if not email:
             raise HTTPException(status_code=404, detail="Keine Auth-E-Mail fuer diesen Nutzer gefunden")
@@ -442,6 +453,7 @@ def add_household_member(household_id: str, member_in: HouseholdMemberAdd, user_
 @router.post("/{household_id}/invites", response_model=HouseholdInviteView)
 def create_household_invite(household_id: str, invite_in: HouseholdInviteCreate, user_id: str):
     """Legt eine Einladung per E-Mail fuer einen Haushalt an, sofern der anfragende User Admin ist."""
+    admin_client = require_supabase_admin()
     try:
         requester_res = (
             supabase.table("household_members")
@@ -486,7 +498,7 @@ def create_household_invite(household_id: str, invite_in: HouseholdInviteCreate,
         email_delivery_status = "not_sent"
 
         try:
-            supabase_admin.auth.admin.invite_user_by_email(normalized_email)
+            admin_client.auth.admin.invite_user_by_email(normalized_email)
             email_delivery_status = "sent"
         except Exception as exc:
             error_text = str(exc).lower()
