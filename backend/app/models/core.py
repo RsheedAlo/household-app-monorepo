@@ -96,3 +96,33 @@ class HouseholdPendingInvite(BaseModel):
     status: str
     expires_at: datetime
     created_at: datetime
+
+
+# Daniel 19.04.
+
+class KanbanTaskBase(BaseModel):
+    title: str = Field(..., min_length=2, max_length=120)
+    description: str = Field(default="", max_length=1000)
+    status: str = Field(default="todo", pattern="^(todo|in_progress|done)$")
+
+
+class KanbanTaskCreate(KanbanTaskBase):
+    household_id: UUID
+
+
+class KanbanTaskUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=2, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
+    status: str | None = Field(default=None, pattern="^(todo|in_progress|done)$")
+    position: int | None = None
+
+
+class KanbanTask(BaseModel):
+    id: UUID
+    household_id: UUID
+    title: str
+    description: str
+    status: str
+    position: int
+    created_by: UUID
+    created_at: datetime

@@ -8,6 +8,7 @@ import HouseholdsOverview from "./pages/HouseholdsOverview";
 import Login from "./pages/Login";
 import Notifications from "./pages/Notifications";
 import Register from "./pages/Register";
+import KanbanBoard from "./pages/KanbanBoard";
 
 export default function App() {
     const [userId, setUserId] = useState(localStorage.getItem("userId") || null);
@@ -166,6 +167,15 @@ export default function App() {
                                     activeHousehold={activeHousehold}
                                     refreshHouseholds={loadHouseholds}
                                     setActiveHousehold={setActiveHousehold}
+                                />
+                            }
+                        />
+                        <Route
+                            path="/kanban"
+                            element={
+                                <KanbanBoard
+                                    userId={userId}
+                                    activeHousehold={activeHousehold}
                                 />
                             }
                         />
