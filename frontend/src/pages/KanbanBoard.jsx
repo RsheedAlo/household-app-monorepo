@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { API_URL } from "../config";
 
+// Die drei Spalten unseres Kanban-Boards
 const columns = [
     { key: "todo", title: "To Do" },
     { key: "in_progress", title: "In Progress" },
@@ -8,13 +9,19 @@ const columns = [
 ];
 
 export default function KanbanBoard({ userId, activeHousehold }) {
+    // Speichert alle Tasks, die vom Backend geladen werden
     const [tasks, setTasks] = useState([]);
+
+    // Eingabefelder für neue Aufgabe
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
+
+    // Status für UI / Feedback
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState("");
     const [successMessage, setSuccessMessage] = useState("");
 
+    // Hier werden die Aufgaben nach Status in die 3 Spalten gruppiert
     const groupedTasks = useMemo(() => {
         return {
             todo: tasks.filter((task) => task.status === "todo"),
@@ -23,7 +30,9 @@ export default function KanbanBoard({ userId, activeHousehold }) {
         };
     }, [tasks]);
 
+    // Lädt alle Tasks für den aktuell ausgewählten Haushalt
     const loadTasks = async () => {
+        // Falls User oder Haushalt fehlt, können keine Tasks geladen werden
         if (!userId || !activeHousehold?.id) {
             setTasks([]);
             return;
@@ -35,6 +44,7 @@ export default function KanbanBoard({ userId, activeHousehold }) {
             );
             const data = await response.json();
 
+            // Falls Backend-Fehler kommt, Fehlermeldung anzeigen
             if (!response.ok) {
                 setError(data.detail || "Tasks konnten nicht geladen werden.");
                 return;
@@ -46,12 +56,16 @@ export default function KanbanBoard({ userId, activeHousehold }) {
         }
     };
 
+    // Lädt Tasks neu, sobald User oder aktiver Haushalt wechselt
     useEffect(() => {
         loadTasks();
     }, [userId, activeHousehold?.id]);
 
+    // Erstellt eine neue Aufgabe
     const handleCreateTask = async (event) => {
         event.preventDefault();
+
+        // Ohne Titel oder ohne aktiven Haushalt wird nichts gespeichert
         if (!title.trim() || !activeHousehold?.id) {
             return;
         }
@@ -68,19 +82,23 @@ export default function KanbanBoard({ userId, activeHousehold }) {
                     household_id: activeHousehold.id,
                     title: title.trim(),
                     description: description.trim(),
-                    status: "todo",
+                    status: "todo", // neue Aufgaben starten immer in "To Do"
                 }),
             });
 
             const data = await response.json();
+
             if (!response.ok) {
                 setError(data.detail || "Task konnte nicht erstellt werden.");
                 return;
             }
 
+            // Eingabefelder wieder leeren
             setTitle("");
             setDescription("");
             setSuccessMessage("Task erfolgreich erstellt.");
+
+            // Liste nach dem Erstellen neu laden
             await loadTasks();
         } catch {
             setError("Netzwerkfehler beim Erstellen des Tasks.");
@@ -89,6 +107,7 @@ export default function KanbanBoard({ userId, activeHousehold }) {
         }
     };
 
+    // Verschiebt eine Aufgabe in einen anderen Status
     const moveTask = async (task, nextStatus) => {
         setError("");
         setSuccessMessage("");
@@ -101,6 +120,7 @@ export default function KanbanBoard({ userId, activeHousehold }) {
             });
 
             const data = await response.json();
+
             if (!response.ok) {
                 setError(data.detail || "Task konnte nicht verschoben werden.");
                 return;
@@ -113,6 +133,7 @@ export default function KanbanBoard({ userId, activeHousehold }) {
         }
     };
 
+    // Löscht eine Aufgabe
     const deleteTask = async (taskId) => {
         setError("");
         setSuccessMessage("");
@@ -123,6 +144,7 @@ export default function KanbanBoard({ userId, activeHousehold }) {
             });
 
             const data = await response.json();
+
             if (!response.ok) {
                 setError(data.detail || "Task konnte nicht gelöscht werden.");
                 return;
@@ -135,6 +157,7 @@ export default function KanbanBoard({ userId, activeHousehold }) {
         }
     };
 
+    // Falls niemand eingeloggt ist
     if (!userId) {
         return (
             <section className="section-card">
@@ -143,6 +166,7 @@ export default function KanbanBoard({ userId, activeHousehold }) {
         );
     }
 
+    // Falls kein Haushalt ausgewählt ist
     if (!activeHousehold?.id) {
         return (
             <section className="section-card">
@@ -155,6 +179,7 @@ export default function KanbanBoard({ userId, activeHousehold }) {
 
     return (
         <div className="stack-layout">
+            {/* Bereich zum Erstellen neuer Aufgaben */}
             <section className="section-card section-card--accent">
                 <div className="section-card__header">
                     <div>
@@ -166,6 +191,7 @@ export default function KanbanBoard({ userId, activeHousehold }) {
                     </p>
                 </div>
 
+                {/* Fehlermeldung oder Erfolgsmeldung */}
                 {error && <p className="message-banner message-banner--error">{error}</p>}
                 {successMessage && (
                     <p className="message-banner message-banner--success">{successMessage}</p>
@@ -191,6 +217,7 @@ export default function KanbanBoard({ userId, activeHousehold }) {
                 </form>
             </section>
 
+            {/* Die 3 Kanban-Spalten */}
             <section className="kanban-board">
                 {columns.map((column) => (
                     <div key={column.key} className="kanban-column">
@@ -208,11 +235,14 @@ export default function KanbanBoard({ userId, activeHousehold }) {
                                 groupedTasks[column.key].map((task) => (
                                     <article key={task.id} className="kanban-task-card">
                                         <h4>{task.title}</h4>
+
+                                        {/* Beschreibung nur anzeigen, wenn etwas drin steht */}
                                         {task.description && (
                                             <p className="card-copy">{task.description}</p>
                                         )}
 
                                         <div className="kanban-task-card__actions">
+                                            {/* Falls Task nicht mehr in To Do ist, kann man ihn zurückschieben */}
                                             {task.status !== "todo" && (
                                                 <button
                                                     type="button"
@@ -230,6 +260,7 @@ export default function KanbanBoard({ userId, activeHousehold }) {
                                                 </button>
                                             )}
 
+                                            {/* Falls Task noch nicht fertig ist, kann man ihn weiterschieben */}
                                             {task.status !== "done" && (
                                                 <button
                                                     type="button"
@@ -247,6 +278,7 @@ export default function KanbanBoard({ userId, activeHousehold }) {
                                                 </button>
                                             )}
 
+                                            {/* Task löschen */}
                                             <button
                                                 type="button"
                                                 className="button-secondary button-secondary--danger"
