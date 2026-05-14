@@ -18,6 +18,7 @@ venv/
 Thumbs.db
 .vscode/
 .idea/
+*.iml
 
 # Logs
 *.log
