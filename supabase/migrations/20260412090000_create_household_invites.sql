@@ -1,4 +1,4 @@
-CREATE TABLE household_invites (
+CREATE TABLE IF NOT EXISTS household_invites (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     household_id UUID NOT NULL REFERENCES households(id) ON DELETE CASCADE,
     email TEXT NOT NULL,
@@ -11,5 +11,5 @@ CREATE TABLE household_invites (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_household_invites_household_id ON household_invites(household_id);
-CREATE INDEX idx_household_invites_email ON household_invites(email);
+CREATE INDEX IF NOT EXISTS idx_household_invites_household_id ON household_invites(household_id);
+CREATE INDEX IF NOT EXISTS idx_household_invites_email ON household_invites(email);

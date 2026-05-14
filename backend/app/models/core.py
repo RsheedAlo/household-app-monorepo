@@ -1,6 +1,6 @@
 from datetime import datetime
 from uuid import UUID
-
+from typing import Optional
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -126,3 +126,30 @@ class KanbanTask(BaseModel):
     position: int
     created_by: UUID
     created_at: datetime
+
+#Benjamin 13.05
+
+class EventBase(BaseModel):
+    title: str = Field(..., example="Wocheneinkauf")
+    description: Optional[str] = None
+    start_time: datetime
+    end_time: datetime
+
+class EventCreate(EventBase):
+    pass
+
+class EventUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+
+class EventResponse(EventBase):
+    id: UUID
+    household_id: UUID
+    created_by: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
