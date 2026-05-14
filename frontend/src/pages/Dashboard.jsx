@@ -20,8 +20,8 @@ const modules = [
     {
         prefix: "[Kalender]",
         title: "Kalender & Termine",
-        description: "Gemeinsame Termine sichtbar machen und spaeter mit Kalenderlogik erweitern.",
-        to: null,
+        description: "Gemeinsame Termine sichtbar machen und später mit Kalenderlogik erweitern.",
+        to: "/calendar",
     },
 ];
 
