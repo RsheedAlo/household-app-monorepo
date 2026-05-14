@@ -9,9 +9,9 @@ from app.core.security import get_current_user
 router = APIRouter()
 
 @router.post("/households/{household_id}/events", response_model=EventResponse)
-async def create_event(household_id: UUID, event: EventCreate, current_user = Depends(get_current_user)):
+async def create_event(household_id: UUID, user_id: UUID, event: EventCreate):
     """Einen neuen Termin für einen Haushalt erstellen."""
-    membership = supabase.table("household_members").select("*").eq("household_id", str(household_id)).eq("user_id", str(current_user.id)).execute()
+    membership = supabase.table("household_members").select("*").eq("household_id", str(household_id)).eq("user_id", str(user_id)).execute()
 
     if not membership.data:
         raise HTTPException(
@@ -21,7 +21,7 @@ async def create_event(household_id: UUID, event: EventCreate, current_user = De
 
     event_data = event.model_dump(mode="json")
     event_data["household_id"] = str(household_id)
-    event_data["created_by"] = str(current_user.id)
+    event_data["created_by"] = str(user_id)
 
     try:
         response = supabase.table("calendar_events").insert(event_data).execute()
@@ -52,7 +52,6 @@ async def get_events(household_id: UUID, start_date: Optional[datetime] = None, 
     if end_date:
         query = query.lte("end_time", end_date.isoformat())
 
-    # Jetzt sollte .order() nicht mehr rot sein!
     response = query.order("start_time").execute()
 
     return response.data
@@ -60,7 +59,7 @@ async def get_events(household_id: UUID, start_date: Optional[datetime] = None, 
 @router.put("/events/{event_id}", response_model=EventResponse)
 async def update_event(event_id: UUID, event_update: EventUpdate):
     """Einen bestehenden Termin aktualisieren."""
-    update_data = event_update.model_dump(exclude_unset=True)
+    update_data = event_update.model_dump(mode="json", exclude_unset=True)
 
     if not update_data:
         raise HTTPException(status_code=400, detail="Keine Daten zum Update geliefert.")

@@ -20,9 +20,43 @@ const localizer = dateFnsLocalizer({
     locales,
 });
 
+const getDateString = (date) => {
+    if (!date) return "";
+    const tzoffset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - tzoffset).toISOString().slice(0, 10); // Gibt YYYY-MM-DD
+};
+
+const getTimeString = (date) => {
+    if (!date) return "";
+    const tzoffset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - tzoffset).toISOString().slice(11, 16); // Gibt HH:mm
+};
+
+const updateDatePart = (originalDate, newDateString) => {
+    if (!newDateString) return originalDate;
+    const timeString = getTimeString(originalDate) || "00:00";
+    return new Date(`${newDateString}T${timeString}`);
+};
+
+const updateTimePart = (originalDate, newTimeString) => {
+    if (!newTimeString) return originalDate;
+    const dateString = getDateString(originalDate) || new Date().toISOString().slice(0, 10);
+    return new Date(`${dateString}T${newTimeString}`);
+};
+
 export default function CalendarBoard({ userId, activeHousehold }) {
     const [events, setEvents] = useState([]);
     const [error, setError] = useState("");
+
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalMode, setModalMode] = useState("create");
+    const [selectedEventId, setSelectedEventId] = useState(null);
+
+    const [title, setTitle] = useState("");
+    const [description, setDescription] = useState("");
+    const [startDate, setStartDate] = useState(null);
+    const [endDate, setEndDate] = useState(null);
+    const [isSaving, setIsSaving] = useState(false);
 
     const loadEvents = async () => {
         if (!userId || !activeHousehold?.id) {
@@ -67,9 +101,87 @@ export default function CalendarBoard({ userId, activeHousehold }) {
         loadEvents();
     }, [userId, activeHousehold?.id]);
 
+    const handleSelectSlot = ({ start, end }) => {
+        setModalMode("create");
+        setStartDate(start);
+        setEndDate(end);
+        setTitle("");
+        setDescription("");
+        setIsModalOpen(true);
+    };
+
     const handleSelectEvent = (event) => {
-        //TODO: Termin Detail View
-        alert(`Termin geklickt: ${event.title}\nBeschreibung: ${event.resource.description || "Keine"}`);
+        setModalMode("edit");
+        setSelectedEventId(event.id);
+        setStartDate(event.start);
+        setEndDate(event.end);
+        setTitle(event.title);
+        setDescription(event.resource.description || "");
+        setIsModalOpen(true);
+    };
+
+    const handleSave = async (e) => {
+        e.preventDefault();
+        if (!title.trim()) return;
+
+        setIsSaving(true);
+        setError("");
+
+        const eventData = {
+            title: title.trim(),
+            description: description.trim(),
+            start_time: startDate.toISOString(), // Backend erwartet ISO-Strings
+            end_time: endDate.toISOString(),
+        };
+
+        try {
+            let url = `${API_URL}/api/calender/households/${activeHousehold.id}/events?user_id=${userId}`;
+            let method = "POST";
+
+            if (modalMode === "edit") {
+                url = `${API_URL}/api/calender/events/${selectedEventId}`;
+                method = "PUT";
+            }
+
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(eventData),
+            });
+
+            if (response.ok) {
+                setIsModalOpen(false);
+                await loadEvents();
+            } else {
+                const data = await response.json();
+                setError(data.detail || "Fehler beim Speichern.");
+            }
+        } catch {
+            setError("Netzwerkfehler beim Speichern.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!window.confirm("Termin wirklich löschen?")) return;
+
+        try {
+            const response = await fetch(`${API_URL}/api/calender/events/${selectedEventId}`, {
+                method: "DELETE",
+            });
+
+            if (response.ok) {
+                setIsModalOpen(false);
+                await loadEvents();
+            } else {
+                setError("Fehler beim Löschen.");
+            }
+        } catch {
+            setError("Netzwerkfehler beim Löschen.");
+        }
     };
 
     if (!userId) {
@@ -110,21 +222,118 @@ export default function CalendarBoard({ userId, activeHousehold }) {
                         startAccessor="start"
                         endAccessor="end"
                         culture="de"
-                        messages={{
-                            next: "Weiter",
-                            previous: "Zurück",
-                            today: "Heute",
-                            month: "Monat",
-                            week: "Woche",
-                            day: "Tag",
-                            agenda: "Agenda",
-                            noEventsInRange: "Keine Termine in diesem Zeitraum."
-                        }}
+                        selectable={true}
+                        onSelectSlot={handleSelectSlot}
                         onSelectEvent={handleSelectEvent}
-                        style={{ height: "100%", fontFamily: "inherit" }}
+                        messages={{
+                            next: "Weiter", previous: "Zurück", today: "Heute",
+                            month: "Monat", week: "Woche", day: "Tag", agenda: "Agenda"
+                        }}
                     />
                 </div>
             </section>
+            {isModalOpen && (
+                <div style={{
+                    position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
+                    backgroundColor: "rgba(0,0,0,0.5)", display: "flex",
+                    justifyContent: "center", alignItems: "center", zIndex: 1000
+                }}>
+                    <div className="section-card" style={{ width: "100%", maxWidth: "400px", backgroundColor: "white" }}>
+                        <h3>{modalMode === "create" ? "Neuer Termin" : "Termin bearbeiten"}</h3>
+
+                        <p className="section-note" style={{ marginBottom: "15px" }}>
+                            {startDate?.toLocaleDateString("de-DE")} bis {endDate?.toLocaleDateString("de-DE")}
+                        </p>
+
+                        <form onSubmit={handleSave} className="kanban-form">
+                            <input
+                                type="text"
+                                className="text-input"
+                                placeholder="Titel des Termins"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                autoFocus
+                            />
+
+                            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "15px" }}>
+                                <div style={{ display: "flex", gap: "10px" }}>
+                                    <div style={{ flex: 2, minWidth: 0 }}>
+                                        <label className="section-note" style={{ display: "block", marginBottom: "5px" }}>Startdatum</label>
+                                        <input
+                                            type="date"
+                                            className="text-input"
+                                            style={{ width: "100%", boxSizing: "border-box" }}
+                                            value={getDateString(startDate)}
+                                            onChange={(e) => setStartDate(updateDatePart(startDate, e.target.value))}
+                                            required
+                                        />
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <label className="section-note" style={{ display: "block", marginBottom: "5px" }}>Zeit</label>
+                                        <input
+                                            type="time"
+                                            className="text-input"
+                                            style={{ width: "100%", boxSizing: "border-box" }}
+                                            value={getTimeString(startDate)}
+                                            onChange={(e) => setStartDate(updateTimePart(startDate, e.target.value))}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                <div style={{ display: "flex", gap: "10px" }}>
+                                    <div style={{ flex: 2, minWidth: 0 }}>
+                                        <label className="section-note" style={{ display: "block", marginBottom: "5px" }}>Enddatum</label>
+                                        <input
+                                            type="date"
+                                            className="text-input"
+                                            style={{ width: "100%", boxSizing: "border-box" }}
+                                            value={getDateString(endDate)}
+                                            onChange={(e) => setEndDate(updateDatePart(endDate, e.target.value))}
+                                            required
+                                        />
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <label className="section-note" style={{ display: "block", marginBottom: "5px" }}>Zeit</label>
+                                        <input
+                                            type="time"
+                                            className="text-input"
+                                            style={{ width: "100%", boxSizing: "border-box" }}
+                                            value={getTimeString(endDate)}
+                                            onChange={(e) => setEndDate(updateTimePart(endDate, e.target.value))}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <textarea
+                                className="text-area"
+                                placeholder="Beschreibung (optional)"
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                style={{ marginTop: "15px" }}
+                            />
+
+                            <div style={{ display: "flex", gap: "10px", marginTop: "15px" }}>
+                                <button type="submit" className="button-primary" disabled={isSaving}>
+                                    {isSaving ? "Speichert..." : "Speichern"}
+                                </button>
+
+                                {modalMode === "edit" && (
+                                    <button type="button" className="button-secondary button-secondary--danger" onClick={handleDelete}>
+                                        Löschen
+                                    </button>
+                                )}
+
+                                <button type="button" className="button-secondary" onClick={() => setIsModalOpen(false)}>
+                                    Abbrechen
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
