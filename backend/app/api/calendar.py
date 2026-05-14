@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 from app.models.core import EventCreate, EventUpdate, EventResponse
 from app.db.database import supabase
-from app.core.security import get_current_user
 
 router = APIRouter()
 
