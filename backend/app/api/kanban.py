@@ -7,7 +7,7 @@ router = APIRouter()
 
 
 # Prüft, ob der Benutzer überhaupt Mitglied im Haushalt ist.
-# So kann man verhindern, dass jemand fremde Haushalte sieht oder ändert.
+# Damit kann man verhindern, dass jemand auf fremde Haushalte zugreift.
 def ensure_household_access(household_id: str, user_id: str):
     membership_res = (
         supabase.table("household_members")
@@ -21,15 +21,23 @@ def ensure_household_access(household_id: str, user_id: str):
         raise HTTPException(status_code=403, detail="Kein Zugriff auf diesen Haushalt")
 
 
-# Lädt alle Kanban-Tasks für einen Haushalt
+# Hilfsfunktion:
+# Datetime-Werte müssen für Supabase / JSON in Strings umgewandelt werden.
+def serialize_datetime(value):
+    if value is None:
+        return None
+    return value.isoformat()
+
+
+# Lädt alle Kanban-Tasks für einen bestimmten Haushalt
 @router.get("/{household_id}/tasks", response_model=list[KanbanTask])
 def get_tasks_for_household(household_id: str, user_id: str):
     """Lädt alle Kanban-Tasks eines Haushalts."""
     try:
-        # Erst Zugriff auf Haushalt prüfen
+        # Zuerst prüfen, ob der User überhaupt auf diesen Haushalt zugreifen darf
         ensure_household_access(household_id, user_id)
 
-        # Danach alle Tasks dieses Haushalts laden
+        # Danach alle Tasks aus der Tabelle holen, die zu diesem Haushalt gehören
         response = (
             supabase.table("kanban_tasks")
             .select("*")
@@ -45,16 +53,67 @@ def get_tasks_for_household(household_id: str, user_id: str):
         raise HTTPException(status_code=500, detail=f"Fehler beim Laden der Tasks: {exc}")
 
 
+# Lädt Mitglieder des Haushalts
+# Das wird für die Zuweisung von Aufgaben an Personen verwendet
+@router.get("/{household_id}/members")
+def get_household_members(household_id: str, user_id: str):
+    """Lädt Mitglieder des Haushalts für Zuweisungen."""
+    try:
+        # Auch hier zuerst Zugriff prüfen
+        ensure_household_access(household_id, user_id)
+
+        # Zuerst alle Mitglieder des Haushalts holen
+        members_res = (
+            supabase.table("household_members")
+            .select("user_id, role")
+            .eq("household_id", household_id)
+            .execute()
+        )
+
+        members = members_res.data or []
+        if not members:
+            return []
+
+        user_ids = [member["user_id"] for member in members]
+
+        # Danach Profile holen, damit im Frontend Namen statt UUIDs angezeigt werden können
+        profiles_res = (
+            supabase.table("profiles")
+            .select("id, display_name")
+            .in_("id", user_ids)
+            .execute()
+        )
+
+        profiles = profiles_res.data or []
+        profile_map = {profile["id"]: profile["display_name"] for profile in profiles}
+
+        result = []
+        for member in members:
+            result.append(
+                {
+                    "user_id": member["user_id"],
+                    "role": member["role"],
+                    "display_name": profile_map.get(member["user_id"], member["user_id"]),
+                }
+            )
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Fehler beim Laden der Mitglieder: {exc}")
+
+
 # Erstellt eine neue Aufgabe
 @router.post("/tasks", response_model=KanbanTask)
 def create_task(task_in: KanbanTaskCreate, user_id: str):
     """Erstellt einen neuen Kanban-Task."""
     try:
-        # Prüfen, ob User Zugriff auf diesen Haushalt hat
+        # Prüfen, ob der Benutzer im Haushalt ist
         ensure_household_access(str(task_in.household_id), user_id)
 
-        # Wir holen uns die höchste Position in dieser Spalte,
-        # damit der neue Task am Ende einsortiert wird
+        # Höchste Position in der Zielspalte holen,
+        # damit der neue Task am Ende der Spalte landet
         max_position_res = (
             supabase.table("kanban_tasks")
             .select("position")
@@ -69,7 +128,7 @@ def create_task(task_in: KanbanTaskCreate, user_id: str):
         if max_position_res.data:
             next_position = (max_position_res.data[0].get("position") or 0) + 1
 
-        # Neue Aufgabe in die Tabelle einfügen
+        # Neue Aufgabe in die Datenbank einfügen
         response = (
             supabase.table("kanban_tasks")
             .insert(
@@ -80,6 +139,11 @@ def create_task(task_in: KanbanTaskCreate, user_id: str):
                     "status": task_in.status,
                     "position": next_position,
                     "created_by": user_id,
+                    # Erweiterte Felder
+                    "priority": task_in.priority,
+                    "due_date": serialize_datetime(task_in.due_date),
+                    "label": task_in.label,
+                    "assigned_to": str(task_in.assigned_to) if task_in.assigned_to else None,
                 }
             )
             .execute()
@@ -96,12 +160,12 @@ def create_task(task_in: KanbanTaskCreate, user_id: str):
 
 
 # Aktualisiert eine bestehende Aufgabe
-# Wird aktuell vor allem für den Statuswechsel verwendet
+# Wird z. B. für Statuswechsel, Bearbeiten, Priorität oder Deadline verwendet
 @router.patch("/tasks/{task_id}", response_model=KanbanTask)
 def update_task(task_id: str, task_in: KanbanTaskUpdate, user_id: str):
     """Aktualisiert einen Kanban-Task."""
     try:
-        # Aktuellen Task zuerst aus der DB holen
+        # Zuerst den aktuellen Task aus der DB laden
         current_res = (
             supabase.table("kanban_tasks")
             .select("*")
@@ -114,19 +178,36 @@ def update_task(task_id: str, task_in: KanbanTaskUpdate, user_id: str):
 
         current_task = current_res.data[0]
 
-        # Wieder prüfen, ob User auf den Haushalt des Tasks zugreifen darf
+        # Danach prüfen, ob der User auf den Haushalt zugreifen darf
         ensure_household_access(current_task["household_id"], user_id)
 
-        # Nur Felder updaten, die auch wirklich mitgeschickt wurden
+        # Nur die Felder updaten, die wirklich mitgeschickt wurden
         update_payload = {}
+
         if task_in.title is not None:
             update_payload["title"] = task_in.title
+
         if task_in.description is not None:
             update_payload["description"] = task_in.description
+
         if task_in.status is not None:
             update_payload["status"] = task_in.status
+
         if task_in.position is not None:
             update_payload["position"] = task_in.position
+
+        if task_in.priority is not None:
+            update_payload["priority"] = task_in.priority
+
+        # due_date / label / assigned_to dürfen auch bewusst auf null gesetzt werden
+        if "due_date" in task_in.model_fields_set:
+            update_payload["due_date"] = serialize_datetime(task_in.due_date)
+
+        if "label" in task_in.model_fields_set:
+            update_payload["label"] = task_in.label
+
+        if "assigned_to" in task_in.model_fields_set:
+            update_payload["assigned_to"] = str(task_in.assigned_to) if task_in.assigned_to else None
 
         response = (
             supabase.table("kanban_tasks")
@@ -163,9 +244,10 @@ def delete_task(task_id: str, user_id: str):
 
         current_task = current_res.data[0]
 
-        # Prüfen, ob User auf den Haushalt des Tasks zugreifen darf
+        # Wieder prüfen, ob der Benutzer Zugriff auf den zugehörigen Haushalt hat
         ensure_household_access(current_task["household_id"], user_id)
 
+        # Task aus der Datenbank löschen
         response = (
             supabase.table("kanban_tasks")
             .delete()

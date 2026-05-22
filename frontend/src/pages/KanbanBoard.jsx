@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { API_URL } from "../config";
 
-// Die drei Spalten unseres Kanban-Boards
+// Die drei Spalten des Kanban-Boards
 const columns = [
     { key: "todo", title: "To Do" },
     { key: "in_progress", title: "In Progress" },
@@ -9,30 +9,71 @@ const columns = [
 ];
 
 export default function KanbanBoard({ userId, activeHousehold }) {
-    // Speichert alle Tasks, die vom Backend geladen werden
+    // Alle geladenen Tasks
     const [tasks, setTasks] = useState([]);
+
+    // Mitglieder des aktiven Haushalts für Zuweisung / Anzeige
+    const [members, setMembers] = useState([]);
 
     // Eingabefelder für neue Aufgabe
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
+    const [priority, setPriority] = useState("medium");
+    const [dueDate, setDueDate] = useState("");
+    const [label, setLabel] = useState("");
+    const [assignedTo, setAssignedTo] = useState("");
 
-    // Status für UI / Feedback
+    // Status / Meldungen
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState("");
     const [successMessage, setSuccessMessage] = useState("");
 
-    // Hier werden die Aufgaben nach Status in die 3 Spalten gruppiert
-    const groupedTasks = useMemo(() => {
-        return {
-            todo: tasks.filter((task) => task.status === "todo"),
-            in_progress: tasks.filter((task) => task.status === "in_progress"),
-            done: tasks.filter((task) => task.status === "done"),
-        };
-    }, [tasks]);
+    // Bearbeiten bestehender Tasks
+    const [editingTask, setEditingTask] = useState(null);
+    const [editTitle, setEditTitle] = useState("");
+    const [editDescription, setEditDescription] = useState("");
+    const [editPriority, setEditPriority] = useState("medium");
+    const [editDueDate, setEditDueDate] = useState("");
+    const [editLabel, setEditLabel] = useState("");
+    const [editAssignedTo, setEditAssignedTo] = useState("");
 
-    // Lädt alle Tasks für den aktuell ausgewählten Haushalt
+    // Ref für die Bearbeiten-Sektion
+    const editSectionRef = useRef(null);
+
+    // Filter
+    const [priorityFilter, setPriorityFilter] = useState("all");
+    const [labelFilter, setLabelFilter] = useState("");
+    const [assignedFilter, setAssignedFilter] = useState("all");
+
+    // Drag & Drop
+    const [draggedTaskId, setDraggedTaskId] = useState(null);
+
+    // Mitglieder des Haushalts laden
+    const loadMembers = async () => {
+        if (!userId || !activeHousehold?.id) {
+            setMembers([]);
+            return;
+        }
+
+        try {
+            const response = await fetch(
+                `${API_URL}/api/kanban/${activeHousehold.id}/members?user_id=${userId}`,
+            );
+
+            if (!response.ok) {
+                setMembers([]);
+                return;
+            }
+
+            const data = await response.json();
+            setMembers(data || []);
+        } catch {
+            setMembers([]);
+        }
+    };
+
+    // Tasks des aktiven Haushalts laden
     const loadTasks = async () => {
-        // Falls User oder Haushalt fehlt, können keine Tasks geladen werden
         if (!userId || !activeHousehold?.id) {
             setTasks([]);
             return;
@@ -44,7 +85,6 @@ export default function KanbanBoard({ userId, activeHousehold }) {
             );
             const data = await response.json();
 
-            // Falls Backend-Fehler kommt, Fehlermeldung anzeigen
             if (!response.ok) {
                 setError(data.detail || "Tasks konnten nicht geladen werden.");
                 return;
@@ -56,16 +96,59 @@ export default function KanbanBoard({ userId, activeHousehold }) {
         }
     };
 
-    // Lädt Tasks neu, sobald User oder aktiver Haushalt wechselt
+    // Neu laden, wenn User oder Haushalt wechselt
     useEffect(() => {
         loadTasks();
+        loadMembers();
     }, [userId, activeHousehold?.id]);
 
-    // Erstellt eine neue Aufgabe
+    // Map für Anzeige von Namen statt UUID
+    const memberNameMap = useMemo(() => {
+        const map = {};
+        members.forEach((member) => {
+            map[member.user_id] = member.display_name || member.user_id;
+        });
+        return map;
+    }, [members]);
+
+    // Filtert Tasks vor der Anzeige
+    const filteredTasks = useMemo(() => {
+        return tasks.filter((task) => {
+            if (priorityFilter !== "all" && task.priority !== priorityFilter) {
+                return false;
+            }
+
+            if (
+                assignedFilter !== "all" &&
+                (task.assigned_to || "") !== assignedFilter
+            ) {
+                return false;
+            }
+
+            if (
+                labelFilter &&
+                !(task.label || "").toLowerCase().includes(labelFilter.toLowerCase())
+            ) {
+                return false;
+            }
+
+            return true;
+        });
+    }, [tasks, priorityFilter, assignedFilter, labelFilter]);
+
+    // Aufgaben nach Status in Spalten gruppieren
+    const groupedTasks = useMemo(() => {
+        return {
+            todo: filteredTasks.filter((task) => task.status === "todo"),
+            in_progress: filteredTasks.filter((task) => task.status === "in_progress"),
+            done: filteredTasks.filter((task) => task.status === "done"),
+        };
+    }, [filteredTasks]);
+
+    // Neue Aufgabe erstellen
     const handleCreateTask = async (event) => {
         event.preventDefault();
 
-        // Ohne Titel oder ohne aktiven Haushalt wird nichts gespeichert
         if (!title.trim() || !activeHousehold?.id) {
             return;
         }
@@ -82,7 +165,11 @@ export default function KanbanBoard({ userId, activeHousehold }) {
                     household_id: activeHousehold.id,
                     title: title.trim(),
                     description: description.trim(),
-                    status: "todo", // neue Aufgaben starten immer in "To Do"
+                    status: "todo",
+                    priority,
+                    due_date: dueDate || null,
+                    label: label.trim() || null,
+                    assigned_to: assignedTo || null,
                 }),
             });
 
@@ -93,12 +180,20 @@ export default function KanbanBoard({ userId, activeHousehold }) {
                 return;
             }
 
-            // Eingabefelder wieder leeren
+            // Eingabefelder zurücksetzen
             setTitle("");
             setDescription("");
-            setSuccessMessage("Task erfolgreich erstellt.");
+            setPriority("medium");
+            setDueDate("");
+            setLabel("");
+            setAssignedTo("");
 
-            // Liste nach dem Erstellen neu laden
+            // Filter zurücksetzen, damit neue Tasks sichtbar bleiben
+            setPriorityFilter("all");
+            setLabelFilter("");
+            setAssignedFilter("all");
+
+            setSuccessMessage("Task erfolgreich erstellt.");
             await loadTasks();
         } catch {
             setError("Netzwerkfehler beim Erstellen des Tasks.");
@@ -107,17 +202,20 @@ export default function KanbanBoard({ userId, activeHousehold }) {
         }
     };
 
-    // Verschiebt eine Aufgabe in einen anderen Status
+    // Aufgabe in andere Spalte verschieben
     const moveTask = async (task, nextStatus) => {
         setError("");
         setSuccessMessage("");
 
         try {
-            const response = await fetch(`${API_URL}/api/kanban/tasks/${task.id}?user_id=${userId}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status: nextStatus }),
-            });
+            const response = await fetch(
+                `${API_URL}/api/kanban/tasks/${task.id}?user_id=${userId}`,
+                {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ status: nextStatus }),
+                }
+            );
 
             const data = await response.json();
 
@@ -133,15 +231,18 @@ export default function KanbanBoard({ userId, activeHousehold }) {
         }
     };
 
-    // Löscht eine Aufgabe
+    // Aufgabe löschen
     const deleteTask = async (taskId) => {
         setError("");
         setSuccessMessage("");
 
         try {
-            const response = await fetch(`${API_URL}/api/kanban/tasks/${taskId}?user_id=${userId}`, {
-                method: "DELETE",
-            });
+            const response = await fetch(
+                `${API_URL}/api/kanban/tasks/${taskId}?user_id=${userId}`,
+                {
+                    method: "DELETE",
+                }
+            );
 
             const data = await response.json();
 
@@ -157,7 +258,92 @@ export default function KanbanBoard({ userId, activeHousehold }) {
         }
     };
 
-    // Falls niemand eingeloggt ist
+    // Bearbeiten starten
+    const startEditTask = (task) => {
+        setEditingTask(task);
+        setEditTitle(task.title || "");
+        setEditDescription(task.description || "");
+        setEditPriority(task.priority || "medium");
+        setEditDueDate(task.due_date ? task.due_date.slice(0, 16) : "");
+        setEditLabel(task.label || "");
+        setEditAssignedTo(task.assigned_to || "");
+
+        // Nach dem Rendern direkt zur Bearbeiten-Sektion scrollen
+        setTimeout(() => {
+            editSectionRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+            });
+        }, 50);
+    };
+
+    // Änderungen speichern
+    const saveTaskEdit = async () => {
+        if (!editingTask) return;
+
+        setError("");
+        setSuccessMessage("");
+
+        try {
+            const response = await fetch(
+                `${API_URL}/api/kanban/tasks/${editingTask.id}?user_id=${userId}`,
+                {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        title: editTitle.trim(),
+                        description: editDescription.trim(),
+                        priority: editPriority,
+                        due_date: editDueDate || null,
+                        label: editLabel.trim() || null,
+                        assigned_to: editAssignedTo || null,
+                    }),
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                setError(data.detail || "Task konnte nicht bearbeitet werden.");
+                return;
+            }
+
+            setEditingTask(null);
+            setEditTitle("");
+            setEditDescription("");
+            setEditPriority("medium");
+            setEditDueDate("");
+            setEditLabel("");
+            setEditAssignedTo("");
+
+            // Filter zurücksetzen, damit bearbeitete Tasks sichtbar bleiben
+            setPriorityFilter("all");
+            setLabelFilter("");
+            setAssignedFilter("all");
+
+            setSuccessMessage("Task aktualisiert.");
+            await loadTasks();
+        } catch {
+            setError("Netzwerkfehler beim Bearbeiten des Tasks.");
+        }
+    };
+
+    // Drag starten
+    const handleDragStart = (taskId) => {
+        setDraggedTaskId(taskId);
+    };
+
+    // Drop auf Zielspalte
+    const handleDrop = async (columnKey) => {
+        if (!draggedTaskId) return;
+
+        const draggedTask = tasks.find((task) => task.id === draggedTaskId);
+        if (!draggedTask) return;
+
+        await moveTask(draggedTask, columnKey);
+        setDraggedTaskId(null);
+    };
+
     if (!userId) {
         return (
             <section className="section-card">
@@ -166,7 +352,6 @@ export default function KanbanBoard({ userId, activeHousehold }) {
         );
     }
 
-    // Falls kein Haushalt ausgewählt ist
     if (!activeHousehold?.id) {
         return (
             <section className="section-card">
@@ -191,7 +376,6 @@ export default function KanbanBoard({ userId, activeHousehold }) {
                     </p>
                 </div>
 
-                {/* Fehlermeldung oder Erfolgsmeldung */}
                 {error && <p className="message-banner message-banner--error">{error}</p>}
                 {successMessage && (
                     <p className="message-banner message-banner--success">{successMessage}</p>
@@ -211,16 +395,198 @@ export default function KanbanBoard({ userId, activeHousehold }) {
                         value={description}
                         onChange={(event) => setDescription(event.target.value)}
                     />
+
+                    <select
+                        className="text-input"
+                        value={priority}
+                        onChange={(event) => setPriority(event.target.value)}
+                    >
+                        <option value="low">Priorität: Niedrig</option>
+                        <option value="medium">Priorität: Mittel</option>
+                        <option value="high">Priorität: Hoch</option>
+                    </select>
+
+                    <input
+                        className="text-input"
+                        type="datetime-local"
+                        value={dueDate}
+                        onChange={(event) => setDueDate(event.target.value)}
+                    />
+
+                    <input
+                        className="text-input"
+                        type="text"
+                        placeholder="Label (optional)"
+                        value={label}
+                        onChange={(event) => setLabel(event.target.value)}
+                    />
+
+                    <select
+                        className="text-input"
+                        value={assignedTo}
+                        onChange={(event) => setAssignedTo(event.target.value)}
+                    >
+                        <option value="">Niemand zugewiesen</option>
+                        {members.map((member) => (
+                            <option key={member.user_id} value={member.user_id}>
+                                {member.display_name || member.user_id}
+                            </option>
+                        ))}
+                    </select>
+
                     <button className="button-primary" type="submit" disabled={isSaving}>
                         {isSaving ? "Speichern..." : "Neue Aufgabe erstellen"}
                     </button>
                 </form>
             </section>
 
+            {/* Bearbeiten */}
+            {editingTask && (
+                <section ref={editSectionRef} className="section-card">
+                    <div className="section-card__header">
+                        <div>
+                            <p className="section-kicker">[Kanban]</p>
+                            <h3 className="section-title">
+                                Aufgabe bearbeiten: {editingTask.title}
+                            </h3>
+                        </div>
+                    </div>
+
+                    <div className="kanban-form">
+                        <input
+                            className="text-input"
+                            type="text"
+                            value={editTitle}
+                            onChange={(event) => setEditTitle(event.target.value)}
+                        />
+                        <textarea
+                            className="text-area"
+                            value={editDescription}
+                            onChange={(event) => setEditDescription(event.target.value)}
+                        />
+
+                        <select
+                            className="text-input"
+                            value={editPriority}
+                            onChange={(event) => setEditPriority(event.target.value)}
+                        >
+                            <option value="low">Priorität: Niedrig</option>
+                            <option value="medium">Priorität: Mittel</option>
+                            <option value="high">Priorität: Hoch</option>
+                        </select>
+
+                        <input
+                            className="text-input"
+                            type="datetime-local"
+                            value={editDueDate}
+                            onChange={(event) => setEditDueDate(event.target.value)}
+                        />
+
+                        <input
+                            className="text-input"
+                            type="text"
+                            value={editLabel}
+                            onChange={(event) => setEditLabel(event.target.value)}
+                            placeholder="Label"
+                        />
+
+                        <select
+                            className="text-input"
+                            value={editAssignedTo}
+                            onChange={(event) => setEditAssignedTo(event.target.value)}
+                        >
+                            <option value="">Niemand zugewiesen</option>
+                            {members.map((member) => (
+                                <option key={member.user_id} value={member.user_id}>
+                                    {member.display_name || member.user_id}
+                                </option>
+                            ))}
+                        </select>
+
+                        <div className="kanban-task-card__actions">
+                            <button type="button" className="button-primary" onClick={saveTaskEdit}>
+                                Änderungen speichern
+                            </button>
+                            <button
+                                type="button"
+                                className="button-secondary"
+                                onClick={() => {
+                                    setEditingTask(null);
+                                    setEditTitle("");
+                                    setEditDescription("");
+                                    setEditPriority("medium");
+                                    setEditDueDate("");
+                                    setEditLabel("");
+                                    setEditAssignedTo("");
+                                }}
+                            >
+                                Abbrechen
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            )}
+
+            {/* Filter */}
+            <section className="section-card">
+                <div className="section-card__header">
+                    <div>
+                        <p className="section-kicker">[Kanban]</p>
+                        <h3 className="section-title">Filter</h3>
+                    </div>
+                </div>
+
+                <div className="kanban-form">
+                    <select
+                        className="text-input"
+                        value={priorityFilter}
+                        onChange={(event) => setPriorityFilter(event.target.value)}
+                    >
+                        <option value="all">Alle Prioritäten</option>
+                        <option value="low">Niedrig</option>
+                        <option value="medium">Mittel</option>
+                        <option value="high">Hoch</option>
+                    </select>
+
+                    <input
+                        className="text-input"
+                        type="text"
+                        placeholder="Nach Label filtern"
+                        value={labelFilter}
+                        onChange={(event) => setLabelFilter(event.target.value)}
+                    />
+
+                    <select
+                        className="text-input"
+                        value={assignedFilter}
+                        onChange={(event) => setAssignedFilter(event.target.value)}
+                    >
+                        <option value="all">Alle Zuweisungen</option>
+                        <option value="">Nicht zugewiesen</option>
+                        {members.map((member) => (
+                            <option key={member.user_id} value={member.user_id}>
+                                {member.display_name || member.user_id}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {(priorityFilter !== "all" || labelFilter || assignedFilter !== "all") && (
+                    <p className="section-note">
+                        Es sind Filter aktiv. Manche Tasks werden möglicherweise ausgeblendet.
+                    </p>
+                )}
+            </section>
+
             {/* Die 3 Kanban-Spalten */}
             <section className="kanban-board">
                 {columns.map((column) => (
-                    <div key={column.key} className="kanban-column">
+                    <div
+                        key={column.key}
+                        className="kanban-column"
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={() => handleDrop(column.key)}
+                    >
                         <div className="kanban-column__header">
                             <h3>{column.title}</h3>
                             <span className="kanban-column__count">
@@ -233,56 +599,109 @@ export default function KanbanBoard({ userId, activeHousehold }) {
                                 <p className="section-empty">Keine Aufgaben in dieser Spalte.</p>
                             ) : (
                                 groupedTasks[column.key].map((task) => (
-                                    <article key={task.id} className="kanban-task-card">
+                                    <article
+                                        key={task.id}
+                                        className="kanban-task-card"
+                                        draggable
+                                        onDragStart={() => handleDragStart(task.id)}
+                                    >
                                         <h4>{task.title}</h4>
 
-                                        {/* Beschreibung nur anzeigen, wenn etwas drin steht */}
                                         {task.description && (
                                             <p className="card-copy">{task.description}</p>
                                         )}
 
+                                        {task.priority && (
+                                            <p className="card-copy">Priorität: {task.priority}</p>
+                                        )}
+
+                                        {task.due_date && (
+                                            <p className="card-copy">
+                                                Deadline: {new Date(task.due_date).toLocaleString()}
+                                            </p>
+                                        )}
+
+                                        {task.label && (
+                                            <p className="card-copy">Label: {task.label}</p>
+                                        )}
+
+                                        {task.assigned_to && (
+                                            <p className="card-copy">
+                                                Zugewiesen: {memberNameMap[task.assigned_to] || task.assigned_to}
+                                            </p>
+                                        )}
+
                                         <div className="kanban-task-card__actions">
-                                            {/* Falls Task nicht mehr in To Do ist, kann man ihn zurückschieben */}
+                                            <button
+                                                type="button"
+                                                className="button-secondary"
+                                                onClick={(event) => {
+                                                    event.preventDefault();
+                                                    event.stopPropagation();
+                                                    startEditTask(task);
+                                                }}
+                                                onMouseDown={(event) => {
+                                                    event.stopPropagation();
+                                                }}
+                                            >
+                                                Bearbeiten
+                                            </button>
+
                                             {task.status !== "todo" && (
                                                 <button
                                                     type="button"
                                                     className="button-secondary"
-                                                    onClick={() =>
+                                                    onClick={(event) => {
+                                                        event.preventDefault();
+                                                        event.stopPropagation();
                                                         moveTask(
                                                             task,
                                                             task.status === "done"
                                                                 ? "in_progress"
                                                                 : "todo",
-                                                        )
-                                                    }
+                                                        );
+                                                    }}
+                                                    onMouseDown={(event) => {
+                                                        event.stopPropagation();
+                                                    }}
                                                 >
                                                     ← Zurück
                                                 </button>
                                             )}
 
-                                            {/* Falls Task noch nicht fertig ist, kann man ihn weiterschieben */}
                                             {task.status !== "done" && (
                                                 <button
                                                     type="button"
                                                     className="button-secondary"
-                                                    onClick={() =>
+                                                    onClick={(event) => {
+                                                        event.preventDefault();
+                                                        event.stopPropagation();
                                                         moveTask(
                                                             task,
                                                             task.status === "todo"
                                                                 ? "in_progress"
                                                                 : "done",
-                                                        )
-                                                    }
+                                                        );
+                                                    }}
+                                                    onMouseDown={(event) => {
+                                                        event.stopPropagation();
+                                                    }}
                                                 >
                                                     Weiter →
                                                 </button>
                                             )}
 
-                                            {/* Task löschen */}
                                             <button
                                                 type="button"
                                                 className="button-secondary button-secondary--danger"
-                                                onClick={() => deleteTask(task.id)}
+                                                onClick={(event) => {
+                                                    event.preventDefault();
+                                                    event.stopPropagation();
+                                                    deleteTask(task.id);
+                                                }}
+                                                onMouseDown={(event) => {
+                                                    event.stopPropagation();
+                                                }}
                                             >
                                                 Löschen
                                             </button>

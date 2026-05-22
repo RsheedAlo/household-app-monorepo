@@ -99,24 +99,41 @@ class HouseholdPendingInvite(BaseModel):
 
 
 # Daniel 19.04.
-
+# Basismodell für Kanban-Tasks
+# Hier stehen die Felder, die grundsätzlich zu einer Aufgabe gehören.
 class KanbanTaskBase(BaseModel):
     title: str = Field(..., min_length=2, max_length=120)
     description: str = Field(default="", max_length=1000)
     status: str = Field(default="todo", pattern="^(todo|in_progress|done)$")
 
+    # Erweiterte Felder
+    priority: str = Field(default="medium", pattern="^(low|medium|high)$")
+    due_date: datetime | None = None
+    label: str | None = Field(default=None, max_length=50)
+    assigned_to: UUID | None = None
 
+
+# Modell für das Erstellen einer neuen Aufgabe
 class KanbanTaskCreate(KanbanTaskBase):
     household_id: UUID
 
 
+# Modell für Updates
+# Hier ist alles optional, weil beim Bearbeiten nicht immer alle Felder geändert werden
 class KanbanTaskUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=2, max_length=120)
     description: str | None = Field(default=None, max_length=1000)
     status: str | None = Field(default=None, pattern="^(todo|in_progress|done)$")
     position: int | None = None
 
+    # Erweiterte Felder
+    priority: str | None = Field(default=None, pattern="^(low|medium|high)$")
+    due_date: datetime | None = None
+    label: str | None = Field(default=None, max_length=50)
+    assigned_to: UUID | None = None
 
+
+# Modell für die Rückgabe eines vollständigen Tasks aus dem Backend
 class KanbanTask(BaseModel):
     id: UUID
     household_id: UUID
@@ -127,7 +144,14 @@ class KanbanTask(BaseModel):
     created_by: UUID
     created_at: datetime
 
-#Benjamin 13.05
+    # Erweiterte Felder
+    priority: str = "medium"
+    due_date: datetime | None = None
+    label: str | None = None
+    assigned_to: UUID | None = None
+
+
+# Benjamin 13.05
 
 class EventBase(BaseModel):
     title: str = Field(..., example="Wocheneinkauf")
@@ -135,14 +159,17 @@ class EventBase(BaseModel):
     start_time: datetime
     end_time: datetime
 
+
 class EventCreate(EventBase):
     pass
+
 
 class EventUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
+
 
 class EventResponse(EventBase):
     id: UUID
