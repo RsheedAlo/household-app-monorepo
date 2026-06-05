@@ -101,6 +101,12 @@ export default function CalendarBoard({ userId, activeHousehold }) {
         loadEvents();
     }, [userId, activeHousehold?.id]);
 
+    const handleExportIcal = () => {
+        if (!activeHousehold?.id) return;
+        const url = `${API_URL}/api/calender/households/${activeHousehold.id}/export?user_id=${userId}`;
+        window.open(url, "_blank");
+    };
+
     const handleSelectSlot = ({ start, end }) => {
         setModalMode("create");
         setStartDate(start);
@@ -214,6 +220,10 @@ export default function CalendarBoard({ userId, activeHousehold }) {
                 </div>
 
                 {error && <p className="message-banner message-banner--error">{error}</p>}
+
+                <button type="button" className="button-secondary" onClick={handleExportIcal}>
+                    .ical Exportieren
+                </button>
 
                 <div style={{ height: "600px", marginTop: "20px" }}>
                     <Calendar

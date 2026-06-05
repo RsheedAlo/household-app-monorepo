@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Response
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
+from icalendar import Calendar, Event as IcalEvent
 from app.models.core import EventCreate, EventUpdate, EventResponse
 from app.db.database import supabase
 
@@ -79,3 +80,39 @@ async def delete_event(event_id: UUID):
         raise HTTPException(status_code=404, detail="Löschen fehlgeschlagen: Termin nicht gefunden.")
 
     return None
+
+@router.get("/households/{household_id}/export")
+async def export_calender(household_id: UUID, user_id: UUID):
+    response = supabase.table("calendar_events").select("*").eq("household_id", str(household_id)).execute()
+    events = response.data
+
+    if not events:
+        raise HTTPException(status_code=404, detail="Keine Termine zum Exportieren gefunden.")
+
+    cal = Calendar()
+    cal.add('prodid', '-//Household App Calendar//DE//')
+    cal.add('version', '2.0')
+
+    for db_event in events:
+        ical_event = IcalEvent()
+        ical_event.add('summary', db_event['title'])
+
+        if db_event.get('description'):
+            ical_event.add('description', db_event['description'])
+
+        start_dt = datetime.fromisoformat(db_event['start_time'].replace("Z", "+00:00"))
+        end_dt = datetime.fromisoformat(db_event['end_time'].replace("Z", "+00:00"))
+
+        ical_event.add('dtstart', start_dt)
+        ical_event.add('dtend', end_dt)
+
+        cal.add_component(ical_event)
+
+    file_content = cal.to_ical()
+    filename = f"haushalt_{household_id}.ics"
+
+    return Response(
+        content=file_content,
+        media_type="text/calendar",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
