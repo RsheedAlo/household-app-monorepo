@@ -10,7 +10,8 @@ dependencies = [
   "pydantic[email]",
   "pydantic-settings>=2.6.0,<3.0.0",
   "psycopg[binary]>=3.2.3,<4.0.0",
-  "supabase"
+  "supabase",
+  "icalendar"
 ]
 
 [project.optional-dependencies]
