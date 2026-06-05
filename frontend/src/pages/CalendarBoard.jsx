@@ -44,6 +44,29 @@ const updateTimePart = (originalDate, newTimeString) => {
     return new Date(`${dateString}T${newTimeString}`);
 };
 
+const EVENT_COLORS = [
+    "#3b82f6", // Blau
+    "#ef4444", // Rot
+    "#10b981", // Smaragdgrün
+    "#f59e0b", // Bernstein / Gelb-Orange
+    "#8b5cf6", // Violett
+    "#ec4899", // Pink
+    "#06b6d4", // Cyan
+    "#f97316"  // Orange
+];
+
+const getColorForUser = (userId) => {
+    if (!userId) return "#94a3b8"; // Grau als Standard
+
+    let hash = 0;
+    for (let i = 0; i < userId.length; i++) {
+        hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+    }
+
+    const index = Math.abs(hash) % EVENT_COLORS.length;
+    return EVENT_COLORS[index];
+};
+
 export default function CalendarBoard({ userId, activeHousehold }) {
     const [events, setEvents] = useState([]);
     const [error, setError] = useState("");
@@ -100,6 +123,22 @@ export default function CalendarBoard({ userId, activeHousehold }) {
     useEffect(() => {
         loadEvents();
     }, [userId, activeHousehold?.id]);
+
+    const eventStyleGetter = (event, start, end, isSelected) => {
+        const creatorId = event.resource?.created_by;
+        const backgroundColor = getColorForUser(creatorId);
+
+        return {
+            style: {
+                backgroundColor: backgroundColor,
+                borderRadius: '6px',
+                opacity: 0.9,
+                color: 'white',
+                border: 'none',
+                display: 'block'
+            }
+        };
+    };
 
     const handleExportIcal = () => {
         if (!activeHousehold?.id) return;
@@ -235,6 +274,7 @@ export default function CalendarBoard({ userId, activeHousehold }) {
                         selectable={true}
                         onSelectSlot={handleSelectSlot}
                         onSelectEvent={handleSelectEvent}
+                        eventPropGetter={eventStyleGetter}
                         messages={{
                             next: "Weiter", previous: "Zurück", today: "Heute",
                             month: "Monat", week: "Woche", day: "Tag", agenda: "Agenda"
