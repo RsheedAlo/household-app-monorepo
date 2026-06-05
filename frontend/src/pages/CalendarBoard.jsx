@@ -80,6 +80,7 @@ export default function CalendarBoard({ userId, activeHousehold }) {
     const [startDate, setStartDate] = useState(null);
     const [endDate, setEndDate] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [notifiedEvents, setNotifiedEvents] = useState(new Set());
 
     const loadEvents = async () => {
         if (!userId || !activeHousehold?.id) {
@@ -124,7 +125,41 @@ export default function CalendarBoard({ userId, activeHousehold }) {
         loadEvents();
     }, [userId, activeHousehold?.id]);
 
-    const eventStyleGetter = (event, start, end, isSelected) => {
+    useEffect(() => {
+        if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
+            Notification.requestPermission();
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!events || events.length === 0) return;
+
+        const checkReminders = setInterval(() => {
+            const now = new Date();
+            const upcomingThreshold = new Date(now.getTime() + 15 * 60000);
+
+            events.forEach(event => {
+                const eventStart = new Date(event.start);
+
+                if (eventStart > now && eventStart <= upcomingThreshold) {
+                    if (!notifiedEvents.has(event.id)) {
+
+                        if (Notification.permission === "granted") {
+                            new Notification(`Bald: ${event.title}`, {
+                                body: `Termin startet um ${eventStart.toLocaleTimeString("de-DE", { hour: '2-digit', minute: '2-digit' })} Uhr.`,
+                            });
+                        }
+
+                        setNotifiedEvents(prev => new Set(prev).add(event.id));
+                    }
+                }
+            });
+        }, 60000);
+
+        return () => clearInterval(checkReminders);
+    }, [events, notifiedEvents]);
+
+    const eventStyleGetter = (event) => {
         const creatorId = event.resource?.created_by;
         const backgroundColor = getColorForUser(creatorId);
 
