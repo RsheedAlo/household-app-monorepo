@@ -14,21 +14,24 @@ import CalendarBoard from "./pages/CalendarBoard";
 export default function App() {
     const [userId, setUserId] = useState(localStorage.getItem("userId") || null);
     const [households, setHouseholds] = useState([]);
+    const [token, setToken] = useState(localStorage.getItem("token") || null);
     const [activeHousehold, setActiveHousehold] = useState(
         JSON.parse(localStorage.getItem("activeHousehold")) || null,
     );
     const [notificationCount, setNotificationCount] = useState(0);
 
     useEffect(() => {
-        if (userId) {
+        if (userId && token) {
             localStorage.setItem("userId", userId);
+            localStorage.setItem("token", token);
             loadHouseholds(userId);
         } else {
             localStorage.removeItem("userId");
+            localStorage.removeItem("token");
             setHouseholds([]);
             setActiveHousehold(null);
         }
-    }, [userId]);
+    }, [userId, token]);
 
     useEffect(() => {
         if (activeHousehold) {
@@ -145,7 +148,7 @@ export default function App() {
                                 />
                             }
                         />
-                        <Route path="/login" element={<Login setUserId={setUserId} />} />
+                        <Route path="/login" element={<Login setUserId={setUserId} setToken={setToken} />} />
                         <Route path="/register" element={<Register setUserId={setUserId} />} />
                         <Route
                             path="/settings"
@@ -186,6 +189,7 @@ export default function App() {
                                 <CalendarBoard
                                     userId={userId}
                                     activeHousehold={activeHousehold}
+                                    token={token}
                                 />
                             }
                         />

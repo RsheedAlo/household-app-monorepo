@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { API_URL } from "../config";
 
-export default function Login({ setUserId }) {
+export default function Login({ setUserId, setToken }) {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
@@ -27,6 +27,7 @@ export default function Login({ setUserId }) {
 
             if (response.ok) {
                 setUserId(data.user_id);
+                setToken(data.access_token || data.token);
                 navigate("/");
                 return;
             }

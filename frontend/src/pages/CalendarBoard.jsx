@@ -67,7 +67,9 @@ const getColorForUser = (userId) => {
     return EVENT_COLORS[index];
 };
 
-export default function CalendarBoard({ userId, activeHousehold }) {
+export default function CalendarBoard({userId, activeHousehold, token}) {
+    const authToken = token;
+
     const [events, setEvents] = useState([]);
     const [error, setError] = useState("");
 
@@ -83,7 +85,7 @@ export default function CalendarBoard({ userId, activeHousehold }) {
     const [notifiedEvents, setNotifiedEvents] = useState(new Set());
 
     const loadEvents = async () => {
-        if (!userId || !activeHousehold?.id) {
+        if (!authToken || !activeHousehold?.id) {
             setEvents([]);
             return;
         }
@@ -92,10 +94,10 @@ export default function CalendarBoard({ userId, activeHousehold }) {
             //TODO:
             // Optional:start_date und end_date mitgeben, um nur aktuel. Monat zu laden
             const response = await fetch(
-                `${API_URL}/api/calender/households/${activeHousehold.id}/events`,
+                `${API_URL}/api/calendar/households/${activeHousehold.id}/events`,
                 {
                     headers: {
-                        "Authorization": `Bearer ${userId}`
+                        "Authorization": `Bearer ${authToken}`
                     }
                 }
             );
@@ -123,7 +125,7 @@ export default function CalendarBoard({ userId, activeHousehold }) {
 
     useEffect(() => {
         loadEvents();
-    }, [userId, activeHousehold?.id]);
+    }, [authToken, activeHousehold?.id]);
 
     useEffect(() => {
         if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
@@ -146,7 +148,10 @@ export default function CalendarBoard({ userId, activeHousehold }) {
 
                         if (Notification.permission === "granted") {
                             new Notification(`Bald: ${event.title}`, {
-                                body: `Termin startet um ${eventStart.toLocaleTimeString("de-DE", { hour: '2-digit', minute: '2-digit' })} Uhr.`,
+                                body: `Termin startet um ${eventStart.toLocaleTimeString("de-DE", {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                })} Uhr.`,
                             });
                         }
 
@@ -175,13 +180,32 @@ export default function CalendarBoard({ userId, activeHousehold }) {
         };
     };
 
-    const handleExportIcal = () => {
+    const handleExportIcal = async () => {
         if (!activeHousehold?.id) return;
-        const url = `${API_URL}/api/calender/households/${activeHousehold.id}/export?user_id=${userId}`;
-        window.open(url, "_blank");
+
+        try {
+            // Sicherer Download über Fetch statt einfachem window.open
+            const response = await fetch(`${API_URL}/api/calendar/households/${activeHousehold.id}/export`, {
+                headers: { "Authorization": `Bearer ${authToken}` }
+            });
+
+            if (!response.ok) throw new Error("Export fehlgeschlagen");
+
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+
+            const a = document.createElement("a");
+            a.href = downloadUrl;
+            a.download = `haushalt_${activeHousehold.id}.ics`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        } catch (err) {
+            setError("Netzwerkfehler beim Exportieren.");
+        }
     };
 
-    const handleSelectSlot = ({ start, end }) => {
+    const handleSelectSlot = ({start, end}) => {
         setModalMode("create");
         setStartDate(start);
         setEndDate(end);
@@ -215,18 +239,19 @@ export default function CalendarBoard({ userId, activeHousehold }) {
         };
 
         try {
-            let url = `${API_URL}/api/calender/households/${activeHousehold.id}/events?user_id=${userId}`;
+            let url = `${API_URL}/api/calendar/households/${activeHousehold.id}/events`;
             let method = "POST";
 
             if (modalMode === "edit") {
-                url = `${API_URL}/api/calender/events/${selectedEventId}`;
+                url = `${API_URL}/api/calendar/events/${selectedEventId}`;
                 method = "PUT";
             }
 
             const response = await fetch(url, {
                 method: method,
                 headers: {
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${authToken}`
                 },
                 body: JSON.stringify(eventData),
             });
@@ -249,8 +274,11 @@ export default function CalendarBoard({ userId, activeHousehold }) {
         if (!window.confirm("Termin wirklich löschen?")) return;
 
         try {
-            const response = await fetch(`${API_URL}/api/calender/events/${selectedEventId}`, {
+            const response = await fetch(`${API_URL}/api/calendar/events/${selectedEventId}`, {
                 method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${authToken}`
+                }
             });
 
             if (response.ok) {
@@ -264,7 +292,7 @@ export default function CalendarBoard({ userId, activeHousehold }) {
         }
     };
 
-    if (!userId) {
+    if (!authToken) {
         return (
             <section className="section-card">
                 <p className="section-empty">Bitte zuerst anmelden, um den Kalender zu nutzen.</p>
@@ -299,7 +327,7 @@ export default function CalendarBoard({ userId, activeHousehold }) {
                     .ical Exportieren
                 </button>
 
-                <div style={{ height: "600px", marginTop: "20px" }}>
+                <div style={{height: "600px", marginTop: "20px"}}>
                     <Calendar
                         localizer={localizer}
                         events={events}
@@ -323,10 +351,10 @@ export default function CalendarBoard({ userId, activeHousehold }) {
                     backgroundColor: "rgba(0,0,0,0.5)", display: "flex",
                     justifyContent: "center", alignItems: "center", zIndex: 1000
                 }}>
-                    <div className="section-card" style={{ width: "100%", maxWidth: "400px", backgroundColor: "white" }}>
+                    <div className="section-card" style={{width: "100%", maxWidth: "400px", backgroundColor: "white"}}>
                         <h3>{modalMode === "create" ? "Neuer Termin" : "Termin bearbeiten"}</h3>
 
-                        <p className="section-note" style={{ marginBottom: "15px" }}>
+                        <p className="section-note" style={{marginBottom: "15px"}}>
                             {startDate?.toLocaleDateString("de-DE")} bis {endDate?.toLocaleDateString("de-DE")}
                         </p>
 
@@ -340,25 +368,27 @@ export default function CalendarBoard({ userId, activeHousehold }) {
                                 autoFocus
                             />
 
-                            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "15px" }}>
-                                <div style={{ display: "flex", gap: "10px" }}>
-                                    <div style={{ flex: 2, minWidth: 0 }}>
-                                        <label className="section-note" style={{ display: "block", marginBottom: "5px" }}>Startdatum</label>
+                            <div style={{display: "flex", flexDirection: "column", gap: "10px", marginTop: "15px"}}>
+                                <div style={{display: "flex", gap: "10px"}}>
+                                    <div style={{flex: 2, minWidth: 0}}>
+                                        <label className="section-note"
+                                               style={{display: "block", marginBottom: "5px"}}>Startdatum</label>
                                         <input
                                             type="date"
                                             className="text-input"
-                                            style={{ width: "100%", boxSizing: "border-box" }}
+                                            style={{width: "100%", boxSizing: "border-box"}}
                                             value={getDateString(startDate)}
                                             onChange={(e) => setStartDate(updateDatePart(startDate, e.target.value))}
                                             required
                                         />
                                     </div>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <label className="section-note" style={{ display: "block", marginBottom: "5px" }}>Zeit</label>
+                                    <div style={{flex: 1, minWidth: 0}}>
+                                        <label className="section-note"
+                                               style={{display: "block", marginBottom: "5px"}}>Zeit</label>
                                         <input
                                             type="time"
                                             className="text-input"
-                                            style={{ width: "100%", boxSizing: "border-box" }}
+                                            style={{width: "100%", boxSizing: "border-box"}}
                                             value={getTimeString(startDate)}
                                             onChange={(e) => setStartDate(updateTimePart(startDate, e.target.value))}
                                             required
@@ -366,24 +396,26 @@ export default function CalendarBoard({ userId, activeHousehold }) {
                                     </div>
                                 </div>
 
-                                <div style={{ display: "flex", gap: "10px" }}>
-                                    <div style={{ flex: 2, minWidth: 0 }}>
-                                        <label className="section-note" style={{ display: "block", marginBottom: "5px" }}>Enddatum</label>
+                                <div style={{display: "flex", gap: "10px"}}>
+                                    <div style={{flex: 2, minWidth: 0}}>
+                                        <label className="section-note"
+                                               style={{display: "block", marginBottom: "5px"}}>Enddatum</label>
                                         <input
                                             type="date"
                                             className="text-input"
-                                            style={{ width: "100%", boxSizing: "border-box" }}
+                                            style={{width: "100%", boxSizing: "border-box"}}
                                             value={getDateString(endDate)}
                                             onChange={(e) => setEndDate(updateDatePart(endDate, e.target.value))}
                                             required
                                         />
                                     </div>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <label className="section-note" style={{ display: "block", marginBottom: "5px" }}>Zeit</label>
+                                    <div style={{flex: 1, minWidth: 0}}>
+                                        <label className="section-note"
+                                               style={{display: "block", marginBottom: "5px"}}>Zeit</label>
                                         <input
                                             type="time"
                                             className="text-input"
-                                            style={{ width: "100%", boxSizing: "border-box" }}
+                                            style={{width: "100%", boxSizing: "border-box"}}
                                             value={getTimeString(endDate)}
                                             onChange={(e) => setEndDate(updateTimePart(endDate, e.target.value))}
                                             required
@@ -397,21 +429,23 @@ export default function CalendarBoard({ userId, activeHousehold }) {
                                 placeholder="Beschreibung (optional)"
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
-                                style={{ marginTop: "15px" }}
+                                style={{marginTop: "15px"}}
                             />
 
-                            <div style={{ display: "flex", gap: "10px", marginTop: "15px" }}>
+                            <div style={{display: "flex", gap: "10px", marginTop: "15px"}}>
                                 <button type="submit" className="button-primary" disabled={isSaving}>
                                     {isSaving ? "Speichert..." : "Speichern"}
                                 </button>
 
                                 {modalMode === "edit" && (
-                                    <button type="button" className="button-secondary button-secondary--danger" onClick={handleDelete}>
+                                    <button type="button" className="button-secondary button-secondary--danger"
+                                            onClick={handleDelete}>
                                         Löschen
                                     </button>
                                 )}
 
-                                <button type="button" className="button-secondary" onClick={() => setIsModalOpen(false)}>
+                                <button type="button" className="button-secondary"
+                                        onClick={() => setIsModalOpen(false)}>
                                     Abbrechen
                                 </button>
                             </div>

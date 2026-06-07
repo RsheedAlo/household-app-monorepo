@@ -1,16 +1,21 @@
 from fastapi import APIRouter, HTTPException, status, Response
-from typing import List, Optional
+from typing import List, Optional, Any
 from uuid import UUID
 from datetime import datetime
+
+from fastapi.params import Depends
 from icalendar import Calendar, Event as IcalEvent
 from app.models.core import EventCreate, EventUpdate, EventResponse
 from app.db.database import supabase
+from app.core.security import get_current_user
 
 router = APIRouter()
 
 @router.post("/households/{household_id}/events", response_model=EventResponse)
-async def create_event(household_id: UUID, user_id: UUID, event: EventCreate):
+async def create_event(household_id: UUID, event: EventCreate, current_user: Any = Depends(get_current_user)):
     """Einen neuen Termin für einen Haushalt erstellen."""
+    user_id = str(current_user.id)
+
     membership = supabase.table("household_members").select("*").eq("household_id", str(household_id)).eq("user_id", str(user_id)).execute()
 
     if not membership.data:
@@ -38,7 +43,7 @@ async def create_event(household_id: UUID, user_id: UUID, event: EventCreate):
         )
 
 @router.get("/households/{household_id}/events", response_model=List[EventResponse])
-async def get_events(household_id: UUID, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None):
+async def get_events(household_id: UUID, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None, current_user = Depends(get_current_user)):
     """
     Alle Termine eines Haushalts abrufen.
     Optional gefiltert nach Zeitraum.
@@ -57,7 +62,7 @@ async def get_events(household_id: UUID, start_date: Optional[datetime] = None, 
     return response.data
 
 @router.put("/events/{event_id}", response_model=EventResponse)
-async def update_event(event_id: UUID, event_update: EventUpdate):
+async def update_event(event_id: UUID, event_update: EventUpdate, current_user = Depends(get_current_user)):
     """Einen bestehenden Termin aktualisieren."""
     update_data = event_update.model_dump(mode="json", exclude_unset=True)
 
@@ -72,7 +77,7 @@ async def update_event(event_id: UUID, event_update: EventUpdate):
     return response.data[0]
 
 @router.delete("/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_event(event_id: UUID):
+async def delete_event(event_id: UUID, current_user = Depends(get_current_user)):
     """Einen Termin löschen."""
     response = supabase.table("calendar_events").delete().eq("id", str(event_id)).execute()
 
@@ -82,7 +87,7 @@ async def delete_event(event_id: UUID):
     return None
 
 @router.get("/households/{household_id}/export")
-async def export_calender(household_id: UUID, user_id: UUID):
+async def export_calender(household_id: UUID, current_user = Depends(get_current_user)):
     response = supabase.table("calendar_events").select("*").eq("household_id", str(household_id)).execute()
     events = response.data
 

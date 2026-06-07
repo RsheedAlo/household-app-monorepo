@@ -11,7 +11,7 @@ router.include_router(auth_router, prefix="/auth", tags=["auth"])
 router.include_router(households_router, prefix="/households", tags=["households"])
 router.include_router(kanban_router, prefix="/kanban", tags=["kanban"])
 
-router.include_router(calender_router,prefix="/calender", tags=["calender"])
+router.include_router(calender_router,prefix="/calendar", tags=["calendar"])
 
 @router.get("/", response_model=ApiInfo, tags=["meta"])
 def api_info() -> ApiInfo:
