@@ -1,0 +1,775 @@
+/* Dashboard: Hero mit Foto und Grafiken, Bento-Kacheln, Haushalte.
+   Alle Selektoren beginnen mit .dash. Globale Klassen werden nur unterhalb von .dash überschrieben,
+   damit z. B. die Seite "Haushalte" (nutzt dieselbe Komponente) unverändert bleibt. */
+
+.dash {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(18px, 3vw, 28px);
+}
+
+/* ---------- Bewegung ---------- */
+
+@keyframes dash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes dash-pop {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* "backwards": Der Auftritt spielt nur vor dem Endzustand, danach gelten wieder die normalen
+   Styles. So bleiben Hover-Transformationen der Kacheln möglich. */
+.dash-rise {
+  animation: dash-rise 520ms var(--hh-ease-out) backwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+.dash-pop {
+  animation: dash-pop 620ms var(--hh-ease-spring) backwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* Parallax-Ebenen: Die Verschiebung kommt aus --px und --py (Hook), die Tiefe aus --depth */
+.dash-par {
+  transform: translate3d(
+    calc(var(--px, 0) * var(--depth, 10) * 1px),
+    calc(var(--py, 0) * var(--depth, 10) * 1px),
+    0
+  );
+  transition: transform 450ms var(--hh-ease-out);
+}
+
+/* ---------- Hero ---------- */
+
+.dash-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  align-items: center;
+  gap: clamp(20px, 4vw, 48px);
+  min-height: 400px;
+  padding: clamp(24px, 4vw, 52px);
+  border-radius: var(--hh-radius-lg);
+  background: var(--hh-brand);
+  color: #fff;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.dash-shapes {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+}
+
+.dash-hero :focus-visible {
+  outline-color: #fff;
+}
+
+.dash-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  margin: 0 0 18px;
+  padding: 8px 16px 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.dash-chip svg {
+  flex: none;
+  font-size: 1.2rem;
+}
+
+.dash-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash .dash-hero__title {
+  font-size: clamp(2.1rem, 5.2vw, 3.7rem);
+  line-height: 1.04;
+  color: #fff;
+}
+
+.dash-hero__name {
+  color: var(--hh-sun);
+}
+
+.dash-hero__lead {
+  max-width: 34ch;
+  margin: 18px 0 0;
+  font-size: clamp(1.05rem, 1.6vw, 1.25rem);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.dash-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.dash-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    transform 160ms var(--hh-ease-out),
+    background-color 160ms ease-out,
+    color 160ms ease-out;
+}
+
+.dash-btn svg {
+  flex: none;
+  font-size: 1.25rem;
+}
+
+.dash-btn:active {
+  transform: scale(0.97);
+}
+
+.dash-btn--light {
+  background: #fff;
+  color: var(--hh-brand-deep);
+}
+
+.dash-btn--ghost {
+  border-color: rgba(255, 255, 255, 0.6);
+  color: #fff;
+}
+
+.dash-btn--solid {
+  background: var(--hh-brand);
+  color: #fff;
+}
+
+.dash-btn--outline {
+  border-color: var(--hh-line);
+  background: #fff;
+  color: var(--hh-ink);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dash-btn--light:hover {
+    background: var(--hh-sun);
+  }
+
+  .dash-btn--ghost:hover {
+    background: rgba(255, 255, 255, 0.14);
+  }
+
+  .dash-btn--solid:hover {
+    background: var(--hh-brand-deep);
+  }
+
+  .dash-btn--outline:hover {
+    background: var(--hh-tint);
+  }
+}
+
+/* Foto, Sticker und Live-Karte */
+
+.dash-hero__art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 280px;
+  padding: 20px 14px 30px 30px;
+}
+
+.dash-photo {
+  width: 100%;
+  max-width: 520px;
+  margin: 0;
+  border: 6px solid #fff;
+  border-radius: 36px 36px 120px 36px;
+  background: #cdd9ff;
+  box-shadow: 0 28px 56px rgba(7, 18, 68, 0.38);
+  overflow: hidden;
+  rotate: 2.5deg;
+}
+
+.dash-photo img {
+  display: block;
+  width: 100%;
+  height: clamp(230px, 28vw, 330px);
+  object-fit: cover;
+}
+
+.dash-sticker {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 8px 12px rgba(7, 18, 68, 0.28));
+}
+
+.dash-par--tomato,
+.dash-par--leaf,
+.dash-par--lemon,
+.dash-par--card {
+  position: absolute;
+}
+
+.dash-par--tomato {
+  left: -1%;
+  bottom: -1%;
+  width: clamp(70px, 9vw, 104px);
+}
+
+.dash-par--leaf {
+  top: -2%;
+  right: 0;
+  width: clamp(62px, 8vw, 92px);
+}
+
+.dash-par--lemon {
+  right: 9%;
+  bottom: -5%;
+  width: clamp(60px, 7vw, 86px);
+}
+
+.dash-par--card {
+  top: 6%;
+  left: 0;
+  z-index: 2;
+  width: min(236px, 62%);
+}
+
+.dash-card {
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: #fff;
+  color: var(--hh-text);
+  box-shadow: 0 18px 36px rgba(7, 18, 68, 0.28);
+}
+
+.dash-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--hh-green-text);
+}
+
+.dash-card__head svg {
+  flex: none;
+  font-size: 1.25rem;
+}
+
+.dash-card__count {
+  min-width: 28px;
+  margin-left: auto;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--hh-green-soft);
+  color: var(--hh-green-deep);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.dash-card ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dash-card li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-weight: 700;
+  animation: dash-rise 420ms var(--hh-ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 70ms + 620ms);
+}
+
+.dash-card li::before {
+  content: "";
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--hh-green);
+  border-radius: 50%;
+}
+
+.dash-card li span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-card li span:last-child:not(:first-child) {
+  margin-left: auto;
+  color: var(--hh-text-soft);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dash-card__empty {
+  margin: 0;
+  color: var(--hh-text-soft);
+}
+
+.dash-card__skeleton {
+  display: grid;
+  gap: 10px;
+}
+
+.dash-card__skeleton span {
+  height: 14px;
+  border-radius: 8px;
+  background: var(--hh-tint);
+  animation: hh-pulse 1.2s ease-in-out infinite;
+}
+
+.dash-card__skeleton span:nth-child(2) {
+  width: 80%;
+}
+
+.dash-card__skeleton span:nth-child(3) {
+  width: 60%;
+}
+
+@media (max-width: 859px) {
+  .dash-shapes__deco {
+    display: none;
+  }
+
+  .dash-hero {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .dash-hero__art {
+    min-height: 250px;
+    padding: 12px 10px 28px 10px;
+  }
+
+  .dash-par--card {
+    top: 2%;
+    width: min(220px, 64%);
+  }
+}
+
+/* ---------- Bento-Kacheln ---------- */
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+
+@media (min-width: 900px) {
+  .dash-grid {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    grid-template-rows: repeat(2, minmax(230px, auto));
+  }
+
+  .dash-tile--shop {
+    grid-row: span 2;
+    min-height: 480px;
+  }
+}
+
+.dash-tile {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: 230px;
+  border-radius: var(--hh-radius-lg);
+  background: rgb(var(--tile-rgb));
+  color: #fff;
+  text-decoration: none;
+  overflow: hidden;
+  isolation: isolate;
+  touch-action: manipulation;
+  transition: transform 260ms var(--hh-ease-out);
+}
+
+.dash-tile--shop {
+  --tile-rgb: 6, 78, 59;
+  --tile-hex: #064e3b;
+  min-height: 450px;
+}
+
+.dash-tile--tasks {
+  --tile-rgb: 120, 53, 15;
+  --tile-hex: #78350f;
+}
+
+.dash-tile--calendar {
+  --tile-rgb: 20, 52, 154;
+  --tile-hex: #14349a;
+}
+
+.dash-tile:focus-visible {
+  outline-color: var(--hh-sun);
+}
+
+.dash-tile__photo {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 500ms var(--hh-ease-out);
+}
+
+.dash-tile__shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    to top,
+    rgba(var(--tile-rgb), 0.97) 0%,
+    rgba(var(--tile-rgb), 0.9) 42%,
+    rgba(var(--tile-rgb), 0.4) 72%,
+    rgba(var(--tile-rgb), 0.04) 100%
+  );
+}
+
+.dash-tile__go {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--tile-hex);
+  font-size: 1.3rem;
+  transition: transform 260ms var(--hh-ease-out);
+}
+
+.dash-tile__body {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  padding: clamp(18px, 2.4vw, 26px);
+}
+
+.dash-tile__icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 1.6rem;
+}
+
+.dash .dash-tile__title {
+  font-size: clamp(1.45rem, 2.4vw, 1.9rem);
+  color: #fff;
+}
+
+.dash-tile__text {
+  max-width: 38ch;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.dash-tile__live {
+  display: grid;
+  gap: 8px;
+  max-width: 360px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dash-tile__live li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 9px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.16);
+  font-weight: 700;
+}
+
+.dash-tile__live li span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-tile__live li span:last-child:not(:first-child) {
+  margin-left: auto;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0.92;
+}
+
+.dash-tile__meta {
+  margin: 2px 0 0;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-tile:active {
+  transform: scale(0.985);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dash-tile:hover {
+    transform: translateY(-4px);
+  }
+
+  .dash-tile:hover .dash-tile__photo {
+    transform: scale(1.05);
+  }
+
+  .dash-tile:hover .dash-tile__go {
+    transform: translate(3px, -3px);
+  }
+
+  .dash-tile:active {
+    transform: translateY(-2px) scale(0.99);
+  }
+}
+
+/* ---------- Haushalte (Komponente HouseholdsSection, nur hier umgestaltet) ---------- */
+
+.dash-households .section-card {
+  padding: clamp(20px, 3vw, 32px);
+  border: 1px solid var(--hh-line);
+  border-radius: var(--hh-radius-lg);
+  background: var(--hh-surface);
+  box-shadow: none;
+}
+
+.dash-households .section-kicker {
+  display: none;
+}
+
+.dash-households .section-card__header {
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+.dash-households .section-title {
+  font-family: var(--hh-font-display);
+  font-size: clamp(1.5rem, 2.6vw, 1.9rem);
+  font-weight: 400;
+  color: var(--hh-ink);
+}
+
+.dash-households .section-note,
+.dash-households .section-empty {
+  color: var(--hh-text-soft);
+}
+
+.dash-households .household-list {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+}
+
+.dash-households .household-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid var(--hh-line);
+  border-radius: var(--hh-radius-md);
+  background: var(--hh-tint);
+  box-shadow: none;
+  cursor: default;
+  transition:
+    border-color 200ms ease-out,
+    background-color 200ms ease-out;
+}
+
+.dash-households .household-card--active {
+  border-color: var(--hh-brand);
+  background: var(--hh-brand-soft);
+  box-shadow: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dash-households .household-card:hover {
+    transform: none;
+    border-color: var(--hh-brand);
+    box-shadow: none;
+  }
+}
+
+.dash-households .household-card__title {
+  overflow-wrap: anywhere;
+  font-family: var(--hh-font-display);
+  font-size: 1.25rem;
+  font-weight: 400;
+  color: var(--hh-ink);
+}
+
+.dash-households .household-card__meta {
+  color: var(--hh-text-soft);
+}
+
+.dash-households .role-badge--admin {
+  background: var(--hh-amber-soft);
+  color: var(--hh-amber-text);
+}
+
+.dash-households .role-badge--member {
+  background: var(--hh-green-soft);
+  color: var(--hh-green-text);
+}
+
+.dash-households .active-badge {
+  background: var(--hh-brand);
+  color: #fff;
+}
+
+.dash .button-primary,
+.dash .button-secondary {
+  min-height: 46px;
+  border-radius: 999px;
+  font-family: var(--hh-font-body);
+  font-weight: 800;
+  touch-action: manipulation;
+  transition:
+    transform 160ms var(--hh-ease-out),
+    background-color 160ms ease-out;
+}
+
+.dash .button-primary {
+  background: var(--hh-brand);
+}
+
+.dash .button-primary:active,
+.dash .button-secondary:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dash .button-primary:hover:not(:disabled) {
+    background: var(--hh-brand-deep);
+  }
+
+  .dash .button-secondary:hover:not(:disabled) {
+    background: var(--hh-tint);
+  }
+}
+
+/* Abgemeldet: freundlicher Hinweis mit Grafik */
+
+.dash-panel {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(18px, 4vw, 40px);
+  padding: clamp(20px, 3vw, 32px);
+  border: 1px solid var(--hh-line);
+  border-radius: var(--hh-radius-lg);
+  background: var(--hh-surface);
+}
+
+.dash-panel__art {
+  width: 100%;
+  height: auto;
+}
+
+.dash-panel__copy {
+  display: grid;
+  gap: 10px;
+}
+
+.dash-panel__copy h2 {
+  font-size: clamp(1.5rem, 2.6vw, 1.9rem);
+}
+
+.dash-panel__copy p {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--hh-text-soft);
+}
+
+.dash-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+@media (max-width: 599px) {
+  .dash-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dash-panel__art {
+    max-width: 200px;
+  }
+}
+
+/* ---------- Weniger Bewegung: Auftritte nur noch einblenden, nichts verschieben ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-rise,
+  .dash-pop {
+    animation-name: hh-fade;
+    animation-duration: 240ms;
+    animation-timing-function: ease-out;
+  }
+
+  .dash-card li {
+    animation: none;
+  }
+
+  .dash-par,
+  .dash-tile,
+  .dash-tile__photo,
+  .dash-tile__go,
+  .dash-btn {
+    transition: none;
+  }
+
+  .dash-tile:hover,
+  .dash-tile:hover .dash-tile__photo,
+  .dash-tile:hover .dash-tile__go,
+  .dash-tile:active,
+  .dash-btn:active {
+    transform: none;
+  }
+}
