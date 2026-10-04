@@ -1,32 +1,55 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+    ArrowCounterClockwise,
+    Check,
+    CheckCircle,
+    House,
+    ListChecks,
+    Package,
+    PencilSimple,
+    Plus,
+    ShoppingCartSimple,
+    Trash,
+} from "@phosphor-icons/react";
+
 import { API_URL } from "../config";
+import { EmptyBasket, EmptyShelf } from "../components/art/EmptyArt";
+import useFlip from "../hooks/useFlip";
+import { formatNumber, quantityLabel } from "../lib/shoppingFormat";
+import "../theme/fonts";
+import "../theme/home-theme.css";
 import "./ShoppingBoard.css";
 
 const EMPTY_DRAFT = { name: "", quantity: "1", unit: "" };
 const UNIT_SUGGESTIONS = ["Stk", "Pkg", "kg", "g", "l", "ml"];
 const MAX_QUANTITY = 9999.99;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const CONFETTI_COLORS = ["#059669", "#ffc83d", "#f26b4b", "#1d4ed8", "#34d399"];
 
 // Aktionen pro Status für Artikel im Vorrat und für aufgebrauchte Artikel.
 // Die erste Aktion ist die übliche und wird hervorgehoben.
 const STATUS_ACTIONS = {
-    in_stock: [{ label: "Aufgebraucht", next: "used_up" }],
+    in_stock: [{ label: "Aufgebraucht", next: "used_up", Icon: CheckCircle }],
     used_up: [
-        { label: "Nachkaufen", next: "planned" },
-        { label: "Rückgängig", next: "in_stock" },
+        { label: "Nachkaufen", next: "planned", Icon: ShoppingCartSimple },
+        { label: "Rückgängig", next: "in_stock", Icon: ArrowCounterClockwise },
     ],
 };
 
-// Zahlen im deutschen Format ohne unnötige Nachkommastellen (2,5 statt 2.50)
-const numberFormat = new Intl.NumberFormat("de-AT", { maximumFractionDigits: 2 });
 const relativeTime = new Intl.RelativeTimeFormat("de", { numeric: "auto" });
 
-// "1" ohne Einheit ist der Normalfall und wird nicht extra angezeigt
-function quantityLabel(item) {
-    if (item.quantity === 1 && !item.unit) {
-        return "";
+function prefersReducedMotion() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+// Kurzes Vibrieren als Bestätigung (nur auf Geräten, die das können)
+function vibrate(milliseconds) {
+    try {
+        navigator.vibrate?.(milliseconds);
+    } catch {
+        // egal: reine Zugabe
     }
-    return [numberFormat.format(item.quantity), item.unit].filter(Boolean).join(" ");
 }
 
 // Leer heißt 1, sonst muss die Menge im erlaubten Bereich liegen
@@ -108,6 +131,75 @@ async function request(token, path, options = {}) {
     return data;
 }
 
+// Artikel gleitet beim Löschen kurz zur Seite, bevor er aus der Liste verschwindet
+function playExit(id) {
+    const element = document.querySelector(`[data-flip-id="${CSS.escape(id)}"]`);
+    if (!element || prefersReducedMotion()) {
+        return Promise.resolve();
+    }
+    return element
+        .animate(
+            [
+                { opacity: 1, transform: "none" },
+                { opacity: 0, transform: "translateX(28px)" },
+            ],
+            { duration: 170, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "forwards" },
+        )
+        .finished.catch(() => {});
+}
+
+// Kleine Belohnung beim Abschließen: bunte Schnipsel, nur transform und opacity
+function Confetti() {
+    const pieces = useMemo(
+        () =>
+            Array.from({ length: 18 }, (_, index) => {
+                const angle = ((Math.PI * 2) / 18) * index + Math.random() * 0.4;
+                const distance = 50 + Math.random() * 60;
+                return {
+                    dx: Math.cos(angle) * distance,
+                    dy: Math.sin(angle) * distance - 24,
+                    rotation: Math.random() * 360,
+                    color: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
+                    delay: Math.random() * 70,
+                };
+            }),
+        [],
+    );
+
+    return (
+        <span className="shop-confetti" aria-hidden="true">
+            {pieces.map((piece, index) => (
+                <i
+                    key={index}
+                    style={{
+                        "--dx": `${piece.dx}px`,
+                        "--dy": `${piece.dy}px`,
+                        "--rot": `${piece.rotation}deg`,
+                        "--c": piece.color,
+                        "--delay": `${piece.delay}ms`,
+                    }}
+                />
+            ))}
+        </span>
+    );
+}
+
+function EmptyState({ Art, title, text, actionLabel, onAction }) {
+    return (
+        <div className="shop-empty">
+            <Art className="shop-empty__art" />
+            <h2>{title}</h2>
+            <p>{text}</p>
+            {onAction && (
+                <button type="button" className="shop-btn shop-btn--ghost" onClick={onAction}>
+                    <Plus weight="bold" aria-hidden="true" />
+                    {actionLabel}
+                </button>
+            )}
+        </div>
+    );
+}
+
 function ItemFields({ draft, onChange, idPrefix, autoFocus = false, nameRef = null }) {
     return (
         <>
@@ -116,7 +208,7 @@ function ItemFields({ draft, onChange, idPrefix, autoFocus = false, nameRef = nu
                 <input
                     ref={nameRef}
                     id={`${idPrefix}-name`}
-                    className="text-input"
+                    className="shop-input"
                     type="text"
                     value={draft.name}
                     maxLength={120}
@@ -130,7 +222,7 @@ function ItemFields({ draft, onChange, idPrefix, autoFocus = false, nameRef = nu
                 <span>Menge</span>
                 <input
                     id={`${idPrefix}-quantity`}
-                    className="text-input shop-number"
+                    className="shop-input shop-input--number"
                     type="number"
                     inputMode="decimal"
                     min="0.01"
@@ -144,7 +236,7 @@ function ItemFields({ draft, onChange, idPrefix, autoFocus = false, nameRef = nu
                 <span>Einheit</span>
                 <input
                     id={`${idPrefix}-unit`}
-                    className="text-input"
+                    className="shop-input"
                     type="text"
                     list="shop-units"
                     value={draft.unit}
@@ -159,6 +251,8 @@ function ItemFields({ draft, onChange, idPrefix, autoFocus = false, nameRef = nu
 
 function ItemRow({
     item,
+    index,
+    enter,
     isEditing,
     editDraft,
     isConfirmingDelete,
@@ -180,7 +274,7 @@ function ItemRow({
 
     if (isEditing) {
         return (
-            <li className="shop-row shop-row--editing">
+            <li className="shop-row shop-row--editing" data-flip-id={item.id}>
                 <form
                     className="shop-edit"
                     onSubmit={onSaveEdit}
@@ -193,10 +287,11 @@ function ItemRow({
                         autoFocus
                     />
                     <div className="shop-edit__actions">
-                        <button className="button-primary" type="submit">
+                        <button className="shop-btn shop-btn--primary" type="submit">
+                            <Check weight="bold" aria-hidden="true" />
                             Speichern
                         </button>
-                        <button className="button-secondary" type="button" onClick={onCancelEdit}>
+                        <button className="shop-btn shop-btn--ghost" type="button" onClick={onCancelEdit}>
                             Abbrechen
                         </button>
                     </div>
@@ -206,15 +301,15 @@ function ItemRow({
     }
 
     const text = (
-        <span className="shop-row__label">
+        <span className="shop-row__text">
             <span className="shop-row__name">{item.name}</span>
-            {quantity && <span className="shop-row__qty">{quantity}</span>}
             {hint && <span className="shop-row__hint">{hint}</span>}
         </span>
     );
 
     const rowClass = [
         "shop-row",
+        enter && `shop-row--${enter}`,
         isBought && "shop-row--done",
         item.status === "used_up" && "shop-row--muted",
     ]
@@ -222,58 +317,87 @@ function ItemRow({
         .join(" ");
 
     return (
-        <li className={rowClass}>
+        <li className={rowClass} data-flip-id={item.id} style={{ "--i": index }}>
             {isCheckable ? (
-                <label className="shop-row__check">
-                    <input type="checkbox" checked={isBought} onChange={() => onToggle(item)} />
+                <label className="shop-row__main">
+                    <input
+                        className="shop-check__input"
+                        type="checkbox"
+                        checked={isBought}
+                        onChange={() => onToggle(item)}
+                    />
+                    <span className="shop-check" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M5.5 12.5l4.2 4.2L18.5 8" />
+                        </svg>
+                    </span>
                     {text}
+                    {quantity && (
+                        <span className="shop-row__qty" title={quantity}>
+                            {quantity}
+                        </span>
+                    )}
                 </label>
             ) : (
-                <div className="shop-row__check shop-row__check--static">{text}</div>
+                <div className="shop-row__main shop-row__main--static">
+                    <span className="shop-avatar" aria-hidden="true">
+                        {Array.from(item.name)[0]?.toUpperCase()}
+                    </span>
+                    {text}
+                    {quantity && (
+                        <span className="shop-row__qty" title={quantity}>
+                            {quantity}
+                        </span>
+                    )}
+                </div>
             )}
 
-            <div className="shop-row__actions">
+            <div className={`shop-row__actions${isConfirmingDelete ? " is-open" : ""}`}>
                 {isConfirmingDelete ? (
                     <>
                         <button
                             type="button"
-                            className="shop-btn shop-btn--danger"
+                            className="shop-pill shop-pill--danger"
                             onClick={() => onConfirmDelete(item)}
                         >
+                            <Trash weight="bold" aria-hidden="true" />
                             Wirklich löschen
                         </button>
-                        <button type="button" className="shop-btn" onClick={onCancelDelete}>
+                        <button type="button" className="shop-pill" onClick={onCancelDelete}>
                             Abbrechen
                         </button>
                     </>
                 ) : (
                     <>
-                        {statusActions.map(({ label, next }, index) => (
+                        {statusActions.map(({ label, next, Icon }, position) => (
                             <button
                                 key={next}
                                 type="button"
-                                className={`shop-btn${index === 0 ? " shop-btn--accent" : ""}`}
+                                className={`shop-pill${position === 0 ? " shop-pill--accent" : ""}`}
                                 aria-label={`${item.name}: ${label}`}
                                 onClick={() => onStatusChange(item, next)}
                             >
+                                <Icon weight="bold" aria-hidden="true" />
                                 {label}
                             </button>
                         ))}
                         <button
                             type="button"
-                            className="shop-btn"
+                            className="shop-icon-btn"
                             aria-label={`${item.name} bearbeiten`}
+                            title="Bearbeiten"
                             onClick={() => onStartEdit(item)}
                         >
-                            Bearbeiten
+                            <PencilSimple weight="bold" aria-hidden="true" />
                         </button>
                         <button
                             type="button"
-                            className="shop-btn shop-btn--danger"
+                            className="shop-icon-btn shop-icon-btn--danger"
                             aria-label={`${item.name} löschen`}
+                            title="Löschen"
                             onClick={() => onAskDelete(item)}
                         >
-                            Löschen
+                            <Trash weight="bold" aria-hidden="true" />
                         </button>
                     </>
                 )}
@@ -290,14 +414,34 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
     const [view, setView] = useState("list"); // list = Einkaufsliste, stock = Vorrat
     const [error, setError] = useState("");
     const [notice, setNotice] = useState("");
+    const [confetti, setConfetti] = useState(0);
 
     const [draft, setDraft] = useState(EMPTY_DRAFT);
     const [isAdding, setIsAdding] = useState(false);
     const nameInputRef = useRef(null);
+    const addedViaKeyboard = useRef(false);
 
     const [editingId, setEditingId] = useState(null);
     const [editDraft, setEditDraft] = useState(EMPTY_DRAFT);
     const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+    // Auftritt der Zeilen: kurzer Stagger nach dem Laden und beim Tab-Wechsel,
+    // dazu ein Einblenden für gerade hinzugefügte Artikel (nicht bei Tastatureingabe)
+    const [staggerOn, setStaggerOn] = useState(false);
+    const [justAddedId, setJustAddedId] = useState(null);
+    const staggerTimer = useRef(0);
+    const listRef = useRef(null);
+
+    const playStagger = useCallback(() => {
+        if (prefersReducedMotion()) {
+            return;
+        }
+        setStaggerOn(true);
+        clearTimeout(staggerTimer.current);
+        staggerTimer.current = setTimeout(() => setStaggerOn(false), 900);
+    }, []);
+
+    useEffect(() => () => clearTimeout(staggerTimer.current), []);
 
     // Nur die jüngste Anfrage darf die Liste setzen (z. B. beim Haushaltswechsel)
     const latestLoad = useRef(0);
@@ -312,6 +456,7 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
             if (loadId === latestLoad.current) {
                 setItems(data);
                 setLoadState("ready");
+                playStagger();
             }
         } catch (loadError) {
             if (loadId === latestLoad.current) {
@@ -319,7 +464,7 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
                 setLoadState("error");
             }
         }
-    }, [token, householdId]);
+    }, [token, householdId, playStagger]);
 
     // Lädt die Liste neu, ohne die Anzeige auf "laden" zu setzen (z. B. nach einem Konflikt)
     const refreshItems = useCallback(async () => {
@@ -341,6 +486,9 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
         }
     }, [token, householdId, loadItems]);
 
+    // Gleitende Bewegung, wenn Artikel die Gruppe wechseln oder die Reihenfolge sich ändert
+    useFlip(listRef, `${view}|${items.map((item) => `${item.id}:${item.status}`).join(",")}`);
+
     const replaceItem = (next) =>
         setItems((current) => current.map((entry) => (entry.id === next.id ? next : entry)));
 
@@ -350,10 +498,15 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
         setConfirmDeleteId(null);
         setNotice("");
         setError("");
+        playStagger();
     };
 
     const addItem = async (event) => {
         event.preventDefault();
+
+        // Tastatur-Aktionen werden nie animiert (Frequenz: sie passieren hundertfach)
+        const viaKeyboard = addedViaKeyboard.current;
+        addedViaKeyboard.current = false;
 
         const name = draft.name.trim();
         if (!name || isAdding) {
@@ -383,6 +536,11 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
             setItems((current) => [...current, created]);
             setDraft(EMPTY_DRAFT);
             nameInputRef.current?.focus();
+
+            if (!viaKeyboard) {
+                setJustAddedId(created.id);
+                setTimeout(() => setJustAddedId(null), 700);
+            }
         } catch (addError) {
             setError(addError.message);
         } finally {
@@ -395,6 +553,9 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
         setError("");
         setNotice("");
         replaceItem({ ...item, status: nextStatus });
+        if (nextStatus === "bought") {
+            vibrate(8);
+        }
 
         try {
             replaceItem(
@@ -428,6 +589,11 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
                     ? "1 Artikel liegt jetzt im Vorrat."
                     : `${moved} Artikel liegen jetzt im Vorrat.`,
             );
+            vibrate(14);
+            if (!prefersReducedMotion()) {
+                setConfetti(Date.now());
+                setTimeout(() => setConfetti(0), 1100);
+            }
         } catch (checkoutError) {
             setError(checkoutError.message);
         }
@@ -474,10 +640,12 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
 
     const deleteItem = async (item) => {
         setError("");
+        setNotice("");
         setConfirmDeleteId(null);
 
         try {
             await request(token, `/items/${item.id}`, { method: "DELETE" });
+            await playExit(item.id);
             setItems((current) => current.filter((entry) => entry.id !== item.id));
         } catch (deleteError) {
             setError(deleteError.message);
@@ -486,19 +654,31 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
 
     if (!userId || !token) {
         return (
-            <section className="section-card">
-                <p className="section-empty">Bitte zuerst anmelden, um die Einkaufsliste zu nutzen.</p>
-            </section>
+            <div className="shop">
+                <div className="shop-note">
+                    <EmptyBasket className="shop-empty__art" />
+                    <h1>Einkauf &amp; Vorrat</h1>
+                    <p>Melde dich an, um die gemeinsame Einkaufsliste deines Haushalts zu nutzen.</p>
+                    <Link className="shop-btn shop-btn--primary" to="/login">
+                        Anmelden
+                    </Link>
+                </div>
+            </div>
         );
     }
 
     if (!householdId) {
         return (
-            <section className="section-card">
-                <p className="section-empty">
-                    Bitte zuerst einen aktiven Haushalt auswählen oder erstellen.
-                </p>
-            </section>
+            <div className="shop">
+                <div className="shop-note">
+                    <EmptyShelf className="shop-empty__art" />
+                    <h1>Einkauf &amp; Vorrat</h1>
+                    <p>Wähle zuerst einen Haushalt aus oder lege einen an, dann geht es los.</p>
+                    <Link className="shop-btn shop-btn--primary" to="/">
+                        Zum Dashboard
+                    </Link>
+                </div>
+            </div>
         );
     }
 
@@ -509,10 +689,12 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
     const listCount = planned.length + bought.length;
 
     const renderRows = (list) =>
-        list.map((item) => (
+        list.map((item, index) => (
             <ItemRow
                 key={item.id}
                 item={item}
+                index={index}
+                enter={item.id === justAddedId ? "enter" : staggerOn ? "stagger" : ""}
                 isEditing={editingId === item.id}
                 editDraft={editDraft}
                 isConfirmingDelete={confirmDeleteId === item.id}
@@ -529,24 +711,62 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
         ));
 
     return (
-        <section className="section-card shop" aria-labelledby="shop-title">
-            <header className="shop__header">
-                <h2 id="shop-title" className="shop__title">
-                    Einkauf &amp; Vorrat
-                </h2>
-                <p className="shop__household">
-                    Haushalt: <strong>{activeHousehold.name}</strong>
-                </p>
+        <div className="shop">
+            <header className="shop-hero">
+                <div className="shop-hero__photos" aria-hidden="true">
+                    <img
+                        className={`shop-hero__photo${view === "list" ? " is-on" : ""}`}
+                        src="/images/wire-basket-onions.webp"
+                        alt=""
+                        width="1024"
+                        height="727"
+                    />
+                    <img
+                        className={`shop-hero__photo${view === "stock" ? " is-on" : ""}`}
+                        src="/images/market-greens.webp"
+                        alt=""
+                        width="1024"
+                        height="681"
+                    />
+                </div>
+                <div className="shop-hero__scrim" aria-hidden="true" />
+
+                <div className="shop-hero__copy">
+                    <p className="shop-hero__house">
+                        <House weight="fill" aria-hidden="true" />
+                        <span>{activeHousehold.name}</span>
+                    </p>
+                    <h1 id="shop-title" className="shop-hero__title">
+                        Einkauf &amp; Vorrat
+                    </h1>
+                    <p className="shop-hero__stats">
+                        <span>
+                            <strong key={`p${planned.length}`} className="shop-bump">
+                                {formatNumber(planned.length)}
+                            </strong>{" "}
+                            zu kaufen
+                        </span>
+                        <span>
+                            <strong key={`s${inStock.length}`} className="shop-bump">
+                                {formatNumber(inStock.length)}
+                            </strong>{" "}
+                            im Vorrat
+                        </span>
+                    </p>
+                </div>
             </header>
 
-            <div className="shop-tabs" role="group" aria-label="Ansicht">
+            <div className="shop-tabs" role="group" aria-label="Ansicht" data-view={view}>
+                <span className="shop-tabs__thumb" aria-hidden="true" />
                 <button
                     type="button"
                     className="shop-tab"
                     aria-pressed={view === "list"}
                     onClick={() => switchView("list")}
                 >
-                    Einkaufsliste <span className="shop-tab__count">{listCount}</span>
+                    <ListChecks weight="bold" aria-hidden="true" />
+                    Einkaufsliste
+                    <span className="shop-tab__count">{listCount}</span>
                 </button>
                 <button
                     type="button"
@@ -554,34 +774,47 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
                     aria-pressed={view === "stock"}
                     onClick={() => switchView("stock")}
                 >
-                    Vorrat <span className="shop-tab__count">{inStock.length}</span>
+                    <Package weight="bold" aria-hidden="true" />
+                    Vorrat
+                    <span className="shop-tab__count">{inStock.length}</span>
                 </button>
             </div>
 
             {error && (
-                <p className="message-banner message-banner--error" role="alert">
+                <p className="shop-banner shop-banner--error" role="alert">
                     {error}
                 </p>
             )}
 
             {notice && (
-                <div className="message-banner message-banner--success shop-notice" role="status">
+                <div className="shop-banner shop-banner--success" role="status">
+                    <CheckCircle weight="fill" aria-hidden="true" />
                     <span>{notice}</span>
+                    {confetti > 0 && <Confetti key={confetti} />}
                     {view === "list" && (
-                        <button type="button" className="shop-btn" onClick={() => switchView("stock")}>
+                        <button type="button" className="shop-pill" onClick={() => switchView("stock")}>
                             Zum Vorrat
                         </button>
                     )}
                 </div>
             )}
 
-            <form className="shop-add" onSubmit={addItem}>
+            <form
+                className="shop-composer"
+                onSubmit={addItem}
+                onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                        addedViaKeyboard.current = true;
+                    }
+                }}
+            >
                 <ItemFields draft={draft} onChange={setDraft} idPrefix="add" nameRef={nameInputRef} />
                 <button
-                    className="button-primary shop-add__submit"
+                    className="shop-btn shop-btn--primary shop-composer__submit"
                     type="submit"
                     disabled={isAdding || !draft.name.trim()}
                 >
+                    <Plus weight="bold" aria-hidden="true" />
                     {view === "stock" ? "In den Vorrat" : "Hinzufügen"}
                 </button>
             </form>
@@ -592,86 +825,112 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
                 ))}
             </datalist>
 
-            {loadState === "loading" && <p className="shop-empty">Artikel werden geladen …</p>}
+            <div className="shop-panel" ref={listRef}>
+                {loadState === "loading" && items.length === 0 && (
+                    <div className="shop-skeleton" aria-hidden="true">
+                        <span />
+                        <span />
+                        <span />
+                        <span />
+                    </div>
+                )}
 
-            {loadState === "error" && (
-                <div className="shop-empty">
-                    <button className="button-secondary" type="button" onClick={loadItems}>
-                        Erneut laden
+                {loadState === "loading" && items.length === 0 && (
+                    <p className="hh-sr-only" role="status">
+                        Artikel werden geladen
+                    </p>
+                )}
+
+                {loadState === "error" && (
+                    <div className="shop-empty">
+                        <p>Die Liste konnte nicht geladen werden.</p>
+                        <button type="button" className="shop-btn shop-btn--ghost" onClick={loadItems}>
+                            <ArrowCounterClockwise weight="bold" aria-hidden="true" />
+                            Erneut laden
+                        </button>
+                    </div>
+                )}
+
+                {view === "list" && (
+                    <>
+                        {loadState === "ready" && listCount === 0 && (
+                            <EmptyState
+                                Art={EmptyBasket}
+                                title="Die Einkaufsliste ist leer"
+                                text="Trage ein, was ihr braucht. Alle im Haushalt sehen dieselbe Liste."
+                                actionLabel="Ersten Artikel eintragen"
+                                onAction={() => nameInputRef.current?.focus()}
+                            />
+                        )}
+
+                        {planned.length > 0 && (
+                            <section className="shop-group" aria-labelledby="shop-planned">
+                                <h2 id="shop-planned" className="shop-group__title">
+                                    Zu kaufen <span>{planned.length}</span>
+                                </h2>
+                                <ul className="shop-list">{renderRows(planned)}</ul>
+                            </section>
+                        )}
+
+                        {bought.length > 0 && (
+                            <section className="shop-group" aria-labelledby="shop-bought">
+                                <h2 id="shop-bought" className="shop-group__title">
+                                    Gekauft <span>{bought.length}</span>
+                                </h2>
+                                <ul className="shop-list">{renderRows(bought)}</ul>
+                            </section>
+                        )}
+                    </>
+                )}
+
+                {view === "stock" && (
+                    <>
+                        {loadState === "ready" && inStock.length === 0 && usedUp.length === 0 && (
+                            <EmptyState
+                                Art={EmptyShelf}
+                                title="Im Vorrat ist noch nichts"
+                                text="Gekaufte Artikel landen nach „Einkauf abschließen“ hier. Du kannst Vorräte auch direkt eintragen."
+                                actionLabel="Vorrat eintragen"
+                                onAction={() => nameInputRef.current?.focus()}
+                            />
+                        )}
+
+                        {inStock.length > 0 && (
+                            <section className="shop-group" aria-labelledby="shop-stock">
+                                <h2 id="shop-stock" className="shop-group__title">
+                                    Im Vorrat <span>{inStock.length}</span>
+                                </h2>
+                                <ul className="shop-list">{renderRows(inStock)}</ul>
+                            </section>
+                        )}
+
+                        {usedUp.length > 0 && (
+                            <section className="shop-group" aria-labelledby="shop-used-up">
+                                <h2 id="shop-used-up" className="shop-group__title">
+                                    Aufgebraucht <span>{usedUp.length}</span>
+                                </h2>
+                                <ul className="shop-list">{renderRows(usedUp)}</ul>
+                            </section>
+                        )}
+                    </>
+                )}
+            </div>
+
+            {view === "list" && bought.length > 0 && (
+                <div className="shop-checkout">
+                    <span className="shop-checkout__icon" aria-hidden="true">
+                        <ShoppingCartSimple weight="fill" />
+                    </span>
+                    <p className="shop-checkout__text">
+                        {bought.length} Artikel gekauft
+                        <span>Beim Abschließen wandern sie in den Vorrat.</span>
+                    </p>
+                    <button type="button" className="shop-btn shop-btn--light" onClick={checkout}>
+                        <Check weight="bold" aria-hidden="true" />
+                        Einkauf abschließen
                     </button>
                 </div>
             )}
-
-            {view === "list" && (
-                <>
-                    {loadState === "ready" && listCount === 0 && (
-                        <p className="shop-empty">
-                            Die Einkaufsliste ist leer. Trage oben den ersten Artikel ein.
-                        </p>
-                    )}
-
-                    {planned.length > 0 && (
-                        <section className="shop-group" aria-labelledby="shop-planned">
-                            <h3 id="shop-planned" className="shop-group__title">
-                                Zu kaufen <span className="shop-group__count">{planned.length}</span>
-                            </h3>
-                            <ul className="shop-list">{renderRows(planned)}</ul>
-                        </section>
-                    )}
-
-                    {bought.length > 0 && (
-                        <section className="shop-group" aria-labelledby="shop-bought">
-                            <h3 id="shop-bought" className="shop-group__title">
-                                Gekauft <span className="shop-group__count">{bought.length}</span>
-                            </h3>
-                            <ul className="shop-list">{renderRows(bought)}</ul>
-                        </section>
-                    )}
-
-                    {bought.length > 0 && (
-                        <div className="shop-checkout">
-                            <p className="shop-checkout__text">
-                                {bought.length} Artikel gekauft
-                                <span className="shop-checkout__hint">
-                                    Beim Abschließen wandern sie in den Vorrat.
-                                </span>
-                            </p>
-                            <button className="button-primary" type="button" onClick={checkout}>
-                                Einkauf abschließen
-                            </button>
-                        </div>
-                    )}
-                </>
-            )}
-
-            {view === "stock" && (
-                <>
-                    {loadState === "ready" && inStock.length === 0 && usedUp.length === 0 && (
-                        <p className="shop-empty">
-                            Im Vorrat ist noch nichts. Gekaufte Artikel landen hier nach „Einkauf
-                            abschließen“. Du kannst Vorräte oben auch direkt eintragen.
-                        </p>
-                    )}
-
-                    {inStock.length > 0 && (
-                        <section className="shop-group" aria-labelledby="shop-stock">
-                            <h3 id="shop-stock" className="shop-group__title">
-                                Im Vorrat <span className="shop-group__count">{inStock.length}</span>
-                            </h3>
-                            <ul className="shop-list">{renderRows(inStock)}</ul>
-                        </section>
-                    )}
-
-                    {usedUp.length > 0 && (
-                        <section className="shop-group" aria-labelledby="shop-used-up">
-                            <h3 id="shop-used-up" className="shop-group__title">
-                                Aufgebraucht <span className="shop-group__count">{usedUp.length}</span>
-                            </h3>
-                            <ul className="shop-list">{renderRows(usedUp)}</ul>
-                        </section>
-                    )}
-                </>
-            )}
-        </section>
+        </div>
     );
 }
