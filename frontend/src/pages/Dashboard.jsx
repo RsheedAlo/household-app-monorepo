@@ -14,8 +14,8 @@ const modules = [
     {
         prefix: "[Einkauf/Vorrat]",
         title: "Einkauf & Vorrat",
-        description: "Einkaufslisten und Vorratslogik als gemeinsamer Haushaltsbereich vorbereiten.",
-        to: null,
+        description: "Einkaufsliste gemeinsam pflegen, Artikel abhaken und den Vorrat im Blick behalten.",
+        to: "/shopping",
     },
     {
         prefix: "[Kalender]",
