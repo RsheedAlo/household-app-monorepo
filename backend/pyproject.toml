@@ -36,3 +36,8 @@ testpaths = ["tests"]
 line-length = 100
 target-version = "py311"
 
+[tool.ruff.lint]
+# Regeln festnageln: Neuere ruff-Versionen erweitern den Standard-Regelsatz und
+# würden die CI sonst ohne Codeänderung rot machen.
+select = ["E4", "E7", "E9", "F"]
+
