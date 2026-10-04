@@ -1,4 +1,4 @@
-/* Einkauf & Vorrat: Foto-Banner, gleitender Umschalter, Liste mit gezeichneten Haken.
+/* Einkauf & Vorrat: Banner, gleitender Umschalter, Liste mit gezeichneten Haken.
    Alle Selektoren beginnen mit .shop, die restliche App bleibt unverändert. */
 
 .shop {
@@ -18,44 +18,35 @@
   align-items: flex-end;
   min-height: 220px;
   border-radius: var(--hh-radius-lg);
-  background: var(--hh-green-deep);
+  background: linear-gradient(120deg, #064e3b 0%, #05684e 100%);
   color: #fff;
   overflow: hidden;
   isolation: isolate;
 }
 
-.shop-hero__photos {
-  position: absolute;
-  inset: 0;
-  z-index: -2;
-}
-
-.shop-hero__photo {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: 70% center;
-  opacity: 0;
-  transition: opacity 450ms ease-out;
-}
-
-.shop-hero__photo.is-on {
-  opacity: 1;
-}
-
-.shop-hero__scrim {
+.shop-hero__art {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(
-    90deg,
-    rgba(6, 78, 59, 0.96) 0%,
-    rgba(6, 78, 59, 0.88) 38%,
-    rgba(6, 78, 59, 0.35) 72%,
-    rgba(6, 78, 59, 0.05) 100%
-  );
+}
+
+.shop-hero__scene {
+  position: absolute;
+  top: 50%;
+  right: -2%;
+  height: 118%;
+  width: auto;
+  max-width: 70%;
+  opacity: 0;
+  transform: translateY(-50%) translateX(12px);
+  transition:
+    opacity 450ms ease-out,
+    transform 450ms var(--hh-ease-out);
+}
+
+.shop-hero__scene.is-on {
+  opacity: 1;
+  transform: translateY(-50%);
 }
 
 .shop-hero__copy {
@@ -901,6 +892,7 @@
     animation: none;
   }
 
+  .shop-hero__scene,
   .shop-tabs__thumb,
   .shop-check,
   .shop-check svg,
