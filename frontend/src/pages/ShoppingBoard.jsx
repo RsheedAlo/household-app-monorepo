@@ -17,6 +17,7 @@ import { API_URL } from "../config";
 import { EmptyBasket, EmptyShelf } from "../components/art/EmptyArt";
 import { ShopHeroArt } from "../components/art/Scenes";
 import useFlip from "../hooks/useFlip";
+import useLiveUpdates from "../hooks/useLiveUpdates";
 import { formatNumber, quantityLabel } from "../lib/shoppingFormat";
 import "../theme/fonts";
 import "../theme/home-theme.css";
@@ -407,6 +408,12 @@ function ItemRow({
     );
 }
 
+const LIVE_LABELS = {
+    live: "Live",
+    connecting: "Verbindet …",
+    offline: "Getrennt",
+};
+
 export default function ShoppingBoard({ userId, activeHousehold, token }) {
     const householdId = activeHousehold?.id;
 
@@ -475,6 +482,17 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
             setError(refreshError.message);
         }
     }, [token, householdId]);
+
+    // Meldung eines anderen Mitglieds: Liste still neu laden (ohne Ladeanzeige, ohne Fehlerbanner)
+    const syncItems = useCallback(async () => {
+        try {
+            setItems(await request(token, `/${householdId}/items`));
+        } catch {
+            // Die nächste Meldung oder der nächste Verbindungsaufbau lädt erneut
+        }
+    }, [token, householdId]);
+
+    const liveStatus = useLiveUpdates(token, householdId, syncItems);
 
     useEffect(() => {
         setItems([]);
@@ -717,10 +735,18 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
                 <ShopHeroArt view={view} />
 
                 <div className="shop-hero__copy">
-                    <p className="shop-hero__house">
-                        <House weight="fill" aria-hidden="true" />
-                        <span>{activeHousehold.name}</span>
-                    </p>
+                    <div className="shop-hero__top">
+                        <p className="shop-hero__house">
+                            <House weight="fill" aria-hidden="true" />
+                            <span>{activeHousehold.name}</span>
+                        </p>
+                        {liveStatus !== "off" && (
+                            <p className="shop-live" data-status={liveStatus} role="status">
+                                <span className="shop-live__dot" aria-hidden="true" />
+                                {LIVE_LABELS[liveStatus]}
+                            </p>
+                        )}
+                    </div>
                     <h1 id="shop-title" className="shop-hero__title">
                         Einkauf &amp; Vorrat
                     </h1>
