@@ -1,0 +1,209 @@
+/* Einkauf/Vorrat: flache Liste auf den Tokens aus styles.css (--text, --border, --primary ...) */
+
+.shop {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.shop :focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.shop__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+
+.shop__title {
+  margin: 0;
+  font-size: 1.6rem;
+  line-height: 1.15;
+}
+
+.shop__household {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.shop .message-banner {
+  margin: 0;
+}
+
+/* Eingabezeilen (Hinzufügen und Bearbeiten) */
+
+.shop-add,
+.shop-edit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.shop-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.shop-field--name,
+.shop-add__submit,
+.shop-edit__actions {
+  grid-column: 1 / -1;
+}
+
+.shop-number {
+  font-variant-numeric: tabular-nums;
+}
+
+.shop-edit {
+  width: 100%;
+  padding: 10px 0;
+}
+
+.shop-edit__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+@media (min-width: 720px) {
+  .shop-add,
+  .shop-edit {
+    grid-template-columns: minmax(0, 1fr) 110px 130px auto;
+  }
+
+  .shop-field--name,
+  .shop-add__submit,
+  .shop-edit__actions {
+    grid-column: auto;
+  }
+}
+
+/* Leerer Zustand, Laden, Fehler */
+
+.shop-empty {
+  margin: 0;
+  padding: 8px 0;
+  color: var(--text-soft);
+}
+
+/* Gruppen und Zeilen */
+
+.shop-group__title {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.shop-group__count {
+  margin-left: 6px;
+  color: var(--text-soft);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.shop-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shop-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px 12px;
+}
+
+.shop-row + .shop-row {
+  border-top: 1px solid var(--border);
+}
+
+.shop-row__check {
+  display: flex;
+  flex: 1 1 14rem;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.shop-row__check input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+.shop-row__label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+}
+
+.shop-row__name {
+  overflow-wrap: anywhere;
+}
+
+.shop-row__qty {
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.shop-row--done .shop-row__name {
+  color: var(--text-soft);
+  text-decoration: line-through;
+}
+
+.shop-row__actions {
+  display: flex;
+  flex: none;
+  gap: 4px;
+}
+
+.shop-btn {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-soft);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.shop-btn--danger {
+  color: var(--danger);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .shop-btn:hover {
+    background: var(--surface-muted);
+    color: var(--text);
+  }
+
+  .shop-btn--danger:hover {
+    background: var(--danger-soft);
+    color: var(--danger);
+  }
+}
+
+@media (pointer: coarse) {
+  .shop-btn {
+    min-height: 44px;
+  }
+}
