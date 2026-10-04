@@ -71,6 +71,12 @@ class ShoppingItemUpdate(BaseModel):
         return None if value is None else _round_quantity(value)
 
 
+class CheckoutResult(BaseModel):
+    """Wie viele gekaufte Artikel beim Abschließen in den Vorrat gewandert sind."""
+
+    moved: int
+
+
 class ShoppingItem(BaseModel):
     id: UUID
     household_id: UUID

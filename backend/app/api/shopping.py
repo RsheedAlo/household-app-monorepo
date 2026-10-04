@@ -14,16 +14,19 @@ from app.core.access import HouseholdAccess, is_household_member, require_househ
 from app.core.security import get_current_user
 from app.db.database import supabase
 from app.models.shopping import (
+    CheckoutResult,
     ItemStatus,
     ShoppingItem,
     ShoppingItemCreate,
     ShoppingItemUpdate,
 )
+from app.services.shopping import InvalidTransition, plan_status_change
 
 router = APIRouter()
 
 TABLE = "shopping_items"
 NOT_FOUND = "Artikel nicht gefunden"
+CONFLICT = "Der Artikel wurde zwischenzeitlich geändert. Lade die Liste neu."
 
 
 def _now() -> str:
@@ -90,20 +93,60 @@ def update_item(
     item_in: ShoppingItemUpdate,
     current_user: Any = Depends(get_current_user),
 ):
-    _load_item(item_id, str(current_user.id))
+    current = _load_item(item_id, str(current_user.id))
 
     changes = item_in.model_dump(exclude_unset=True)
     if not changes:
         raise HTTPException(status_code=422, detail="Keine Änderungen übergeben")
 
-    changes["updated_at"] = _now()
-    response = supabase.table(TABLE).update(changes).eq("id", str(item_id)).execute()
+    now = _now()
+    expected_status = None
 
-    # Leer heißt: Der Artikel wurde zwischen Laden und Ändern gelöscht
+    # Statuswechsel nur nach den Regeln aus dem Service, inklusive Zeitstempeln
+    new_status = changes.pop("status", None)
+    if new_status is not None and new_status != current["status"]:
+        try:
+            changes.update(plan_status_change(current["status"], new_status, now))
+        except InvalidTransition as error:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error))
+        expected_status = current["status"]
+
+    # Nichts Neues, z. B. doppelter Klick auf denselben Status
+    if not changes:
+        return current
+
+    changes["updated_at"] = now
+    query = supabase.table(TABLE).update(changes).eq("id", str(item_id))
+    if expected_status:
+        # Nur ändern, wenn niemand den Status inzwischen anders gesetzt hat
+        query = query.eq("status", expected_status)
+    response = query.execute()
+
     if not response.data:
+        # Entweder gelöscht oder jemand anderes war schneller
+        still_there = supabase.table(TABLE).select("id").eq("id", str(item_id)).limit(1).execute()
+        if still_there.data:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=CONFLICT)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
 
     return response.data[0]
+
+
+@router.post(
+    "/{household_id}/checkout",
+    response_model=CheckoutResult,
+    summary="Einkauf abschließen",
+)
+def checkout(access: HouseholdAccess = Depends(require_household_member)):
+    """Alle abgehakten Artikel wandern in den Vorrat (`bought` wird `in_stock`)."""
+    response = (
+        supabase.table(TABLE)
+        .update({"status": "in_stock", "updated_at": _now()})
+        .eq("household_id", access.household_id)
+        .eq("status", "bought")
+        .execute()
+    )
+    return {"moved": len(response.data or [])}
 
 
 @router.delete(
