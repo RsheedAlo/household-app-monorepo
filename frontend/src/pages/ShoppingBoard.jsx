@@ -5,9 +5,21 @@ import "./ShoppingBoard.css";
 const EMPTY_DRAFT = { name: "", quantity: "1", unit: "" };
 const UNIT_SUGGESTIONS = ["Stk", "Pkg", "kg", "g", "l", "ml"];
 const MAX_QUANTITY = 9999.99;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Aktionen pro Status für Artikel im Vorrat und für aufgebrauchte Artikel.
+// Die erste Aktion ist die übliche und wird hervorgehoben.
+const STATUS_ACTIONS = {
+    in_stock: [{ label: "Aufgebraucht", next: "used_up" }],
+    used_up: [
+        { label: "Nachkaufen", next: "planned" },
+        { label: "Rückgängig", next: "in_stock" },
+    ],
+};
 
 // Zahlen im deutschen Format ohne unnötige Nachkommastellen (2,5 statt 2.50)
 const numberFormat = new Intl.NumberFormat("de-AT", { maximumFractionDigits: 2 });
+const relativeTime = new Intl.RelativeTimeFormat("de", { numeric: "auto" });
 
 // "1" ohne Einheit ist der Normalfall und wird nicht extra angezeigt
 function quantityLabel(item) {
@@ -26,12 +38,37 @@ function parseQuantity(text) {
     return Number.isFinite(value) && value > 0 && value <= MAX_QUANTITY ? value : null;
 }
 
+// "heute", "gestern", "vor 3 Tagen" (nach Kalendertagen, nicht nach 24-Stunden-Blöcken)
+function daysAgo(isoDate) {
+    const startOfDay = (date) =>
+        new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    const days = Math.round((startOfDay(new Date()) - startOfDay(new Date(isoDate))) / DAY_MS);
+    return relativeTime.format(-Math.max(days, 0), "day");
+}
+
+// Kleiner Hinweis unter dem Namen, der den Verbrauch sichtbar macht
+function itemHint(item) {
+    if (item.status === "in_stock" && item.bought_at) {
+        return `gekauft ${daysAgo(item.bought_at)}`;
+    }
+    if (item.status === "used_up" && item.used_up_at) {
+        return `aufgebraucht ${daysAgo(item.used_up_at)}`;
+    }
+    if (item.status === "planned" && item.used_up_at) {
+        return `zuletzt aufgebraucht ${daysAgo(item.used_up_at)}`;
+    }
+    return "";
+}
+
 function describeError(status, data) {
     if (status === 401) {
         return "Deine Sitzung ist abgelaufen. Bitte melde dich neu an.";
     }
     if (status === 403 || status === 404) {
         return "Dieser Artikel oder Haushalt ist nicht mehr verfügbar. Lade die Seite neu.";
+    }
+    if (status === 409) {
+        return "Jemand hat diesen Artikel gerade geändert. Die Liste wurde aktualisiert.";
     }
     if (status === 422) {
         return "Bitte prüfe deine Eingabe: Der Name braucht 1 bis 120 Zeichen, die Menge muss größer als 0 sein.";
@@ -42,7 +79,8 @@ function describeError(status, data) {
     return "Das hat nicht geklappt. Versuche es gleich noch einmal.";
 }
 
-// Einheitlicher Aufruf der Einkauf/Vorrat-API mit Bearer-Token
+// Einheitlicher Aufruf der Einkauf/Vorrat-API mit Bearer-Token.
+// Fehler tragen den HTTP-Status, damit die Seite z. B. bei 409 neu laden kann.
 async function request(token, path, options = {}) {
     let response;
     try {
@@ -63,7 +101,9 @@ async function request(token, path, options = {}) {
 
     const data = await response.json().catch(() => null);
     if (!response.ok) {
-        throw new Error(describeError(response.status, data));
+        throw Object.assign(new Error(describeError(response.status, data)), {
+            status: response.status,
+        });
     }
     return data;
 }
@@ -123,6 +163,7 @@ function ItemRow({
     editDraft,
     isConfirmingDelete,
     onToggle,
+    onStatusChange,
     onStartEdit,
     onEditChange,
     onSaveEdit,
@@ -131,8 +172,11 @@ function ItemRow({
     onConfirmDelete,
     onCancelDelete,
 }) {
+    const isCheckable = item.status === "planned" || item.status === "bought";
     const isBought = item.status === "bought";
     const quantity = quantityLabel(item);
+    const hint = itemHint(item);
+    const statusActions = STATUS_ACTIONS[item.status] ?? [];
 
     if (isEditing) {
         return (
@@ -161,15 +205,32 @@ function ItemRow({
         );
     }
 
+    const text = (
+        <span className="shop-row__label">
+            <span className="shop-row__name">{item.name}</span>
+            {quantity && <span className="shop-row__qty">{quantity}</span>}
+            {hint && <span className="shop-row__hint">{hint}</span>}
+        </span>
+    );
+
+    const rowClass = [
+        "shop-row",
+        isBought && "shop-row--done",
+        item.status === "used_up" && "shop-row--muted",
+    ]
+        .filter(Boolean)
+        .join(" ");
+
     return (
-        <li className={`shop-row${isBought ? " shop-row--done" : ""}`}>
-            <label className="shop-row__check">
-                <input type="checkbox" checked={isBought} onChange={() => onToggle(item)} />
-                <span className="shop-row__label">
-                    <span className="shop-row__name">{item.name}</span>
-                    {quantity && <span className="shop-row__qty">{quantity}</span>}
-                </span>
-            </label>
+        <li className={rowClass}>
+            {isCheckable ? (
+                <label className="shop-row__check">
+                    <input type="checkbox" checked={isBought} onChange={() => onToggle(item)} />
+                    {text}
+                </label>
+            ) : (
+                <div className="shop-row__check shop-row__check--static">{text}</div>
+            )}
 
             <div className="shop-row__actions">
                 {isConfirmingDelete ? (
@@ -187,6 +248,17 @@ function ItemRow({
                     </>
                 ) : (
                     <>
+                        {statusActions.map(({ label, next }, index) => (
+                            <button
+                                key={next}
+                                type="button"
+                                className={`shop-btn${index === 0 ? " shop-btn--accent" : ""}`}
+                                aria-label={`${item.name}: ${label}`}
+                                onClick={() => onStatusChange(item, next)}
+                            >
+                                {label}
+                            </button>
+                        ))}
                         <button
                             type="button"
                             className="shop-btn"
@@ -215,7 +287,9 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
 
     const [items, setItems] = useState([]);
     const [loadState, setLoadState] = useState("loading"); // loading | ready | error
+    const [view, setView] = useState("list"); // list = Einkaufsliste, stock = Vorrat
     const [error, setError] = useState("");
+    const [notice, setNotice] = useState("");
 
     const [draft, setDraft] = useState(EMPTY_DRAFT);
     const [isAdding, setIsAdding] = useState(false);
@@ -247,15 +321,36 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
         }
     }, [token, householdId]);
 
+    // Lädt die Liste neu, ohne die Anzeige auf "laden" zu setzen (z. B. nach einem Konflikt)
+    const refreshItems = useCallback(async () => {
+        try {
+            setItems(await request(token, `/${householdId}/items`));
+        } catch (refreshError) {
+            setError(refreshError.message);
+        }
+    }, [token, householdId]);
+
     useEffect(() => {
         setItems([]);
         setEditingId(null);
         setConfirmDeleteId(null);
+        setNotice("");
 
         if (token && householdId) {
             loadItems();
         }
     }, [token, householdId, loadItems]);
+
+    const replaceItem = (next) =>
+        setItems((current) => current.map((entry) => (entry.id === next.id ? next : entry)));
+
+    const switchView = (next) => {
+        setView(next);
+        setEditingId(null);
+        setConfirmDeleteId(null);
+        setNotice("");
+        setError("");
+    };
 
     const addItem = async (event) => {
         event.preventDefault();
@@ -273,11 +368,17 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
 
         setIsAdding(true);
         setError("");
+        setNotice("");
 
         try {
             const created = await request(token, `/${householdId}/items`, {
                 method: "POST",
-                body: JSON.stringify({ name, quantity, unit: draft.unit.trim() || null }),
+                body: JSON.stringify({
+                    name,
+                    quantity,
+                    unit: draft.unit.trim() || null,
+                    status: view === "stock" ? "in_stock" : "planned",
+                }),
             });
             setItems((current) => [...current, created]);
             setDraft(EMPTY_DRAFT);
@@ -289,13 +390,10 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
         }
     };
 
-    // Abhaken und wieder zurücknehmen: sofort sichtbar, bei Fehler wird zurückgesetzt
-    const toggleBought = async (item) => {
-        const nextStatus = item.status === "bought" ? "planned" : "bought";
-        const replaceItem = (next) =>
-            setItems((current) => current.map((entry) => (entry.id === next.id ? next : entry)));
-
+    // Statuswechsel: sofort sichtbar, bei Fehler wird der Artikel zurückgesetzt
+    const changeStatus = async (item, nextStatus) => {
         setError("");
+        setNotice("");
         replaceItem({ ...item, status: nextStatus });
 
         try {
@@ -305,9 +403,33 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
                     body: JSON.stringify({ status: nextStatus }),
                 }),
             );
-        } catch (toggleError) {
+        } catch (statusError) {
             replaceItem(item);
-            setError(toggleError.message);
+            setError(statusError.message);
+            if (statusError.status === 409) {
+                refreshItems();
+            }
+        }
+    };
+
+    const toggleBought = (item) =>
+        changeStatus(item, item.status === "bought" ? "planned" : "bought");
+
+    // Alle abgehakten Artikel wandern in den Vorrat
+    const checkout = async () => {
+        setError("");
+        setNotice("");
+
+        try {
+            const { moved } = await request(token, `/${householdId}/checkout`, { method: "POST" });
+            await refreshItems();
+            setNotice(
+                moved === 1
+                    ? "1 Artikel liegt jetzt im Vorrat."
+                    : `${moved} Artikel liegen jetzt im Vorrat.`,
+            );
+        } catch (checkoutError) {
+            setError(checkoutError.message);
         }
     };
 
@@ -338,11 +460,12 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
         setError("");
 
         try {
-            const updated = await request(token, `/items/${editingId}`, {
-                method: "PATCH",
-                body: JSON.stringify({ name, quantity, unit: editDraft.unit.trim() || null }),
-            });
-            setItems((current) => current.map((entry) => (entry.id === updated.id ? updated : entry)));
+            replaceItem(
+                await request(token, `/items/${editingId}`, {
+                    method: "PATCH",
+                    body: JSON.stringify({ name, quantity, unit: editDraft.unit.trim() || null }),
+                }),
+            );
             setEditingId(null);
         } catch (saveError) {
             setError(saveError.message);
@@ -381,6 +504,9 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
 
     const planned = items.filter((item) => item.status === "planned");
     const bought = items.filter((item) => item.status === "bought");
+    const inStock = items.filter((item) => item.status === "in_stock");
+    const usedUp = items.filter((item) => item.status === "used_up");
+    const listCount = planned.length + bought.length;
 
     const renderRows = (list) =>
         list.map((item) => (
@@ -391,6 +517,7 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
                 editDraft={editDraft}
                 isConfirmingDelete={confirmDeleteId === item.id}
                 onToggle={toggleBought}
+                onStatusChange={changeStatus}
                 onStartEdit={startEdit}
                 onEditChange={setEditDraft}
                 onSaveEdit={saveEdit}
@@ -412,10 +539,40 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
                 </p>
             </header>
 
+            <div className="shop-tabs" role="group" aria-label="Ansicht">
+                <button
+                    type="button"
+                    className="shop-tab"
+                    aria-pressed={view === "list"}
+                    onClick={() => switchView("list")}
+                >
+                    Einkaufsliste <span className="shop-tab__count">{listCount}</span>
+                </button>
+                <button
+                    type="button"
+                    className="shop-tab"
+                    aria-pressed={view === "stock"}
+                    onClick={() => switchView("stock")}
+                >
+                    Vorrat <span className="shop-tab__count">{inStock.length}</span>
+                </button>
+            </div>
+
             {error && (
                 <p className="message-banner message-banner--error" role="alert">
                     {error}
                 </p>
+            )}
+
+            {notice && (
+                <div className="message-banner message-banner--success shop-notice" role="status">
+                    <span>{notice}</span>
+                    {view === "list" && (
+                        <button type="button" className="shop-btn" onClick={() => switchView("stock")}>
+                            Zum Vorrat
+                        </button>
+                    )}
+                </div>
             )}
 
             <form className="shop-add" onSubmit={addItem}>
@@ -425,7 +582,7 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
                     type="submit"
                     disabled={isAdding || !draft.name.trim()}
                 >
-                    Hinzufügen
+                    {view === "stock" ? "In den Vorrat" : "Hinzufügen"}
                 </button>
             </form>
 
@@ -445,28 +602,75 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
                 </div>
             )}
 
-            {loadState === "ready" && items.length === 0 && (
-                <p className="shop-empty">
-                    Die Einkaufsliste ist leer. Trage oben den ersten Artikel ein.
-                </p>
+            {view === "list" && (
+                <>
+                    {loadState === "ready" && listCount === 0 && (
+                        <p className="shop-empty">
+                            Die Einkaufsliste ist leer. Trage oben den ersten Artikel ein.
+                        </p>
+                    )}
+
+                    {planned.length > 0 && (
+                        <section className="shop-group" aria-labelledby="shop-planned">
+                            <h3 id="shop-planned" className="shop-group__title">
+                                Zu kaufen <span className="shop-group__count">{planned.length}</span>
+                            </h3>
+                            <ul className="shop-list">{renderRows(planned)}</ul>
+                        </section>
+                    )}
+
+                    {bought.length > 0 && (
+                        <section className="shop-group" aria-labelledby="shop-bought">
+                            <h3 id="shop-bought" className="shop-group__title">
+                                Gekauft <span className="shop-group__count">{bought.length}</span>
+                            </h3>
+                            <ul className="shop-list">{renderRows(bought)}</ul>
+                        </section>
+                    )}
+
+                    {bought.length > 0 && (
+                        <div className="shop-checkout">
+                            <p className="shop-checkout__text">
+                                {bought.length} Artikel gekauft
+                                <span className="shop-checkout__hint">
+                                    Beim Abschließen wandern sie in den Vorrat.
+                                </span>
+                            </p>
+                            <button className="button-primary" type="button" onClick={checkout}>
+                                Einkauf abschließen
+                            </button>
+                        </div>
+                    )}
+                </>
             )}
 
-            {planned.length > 0 && (
-                <section className="shop-group" aria-labelledby="shop-planned">
-                    <h3 id="shop-planned" className="shop-group__title">
-                        Zu kaufen <span className="shop-group__count">{planned.length}</span>
-                    </h3>
-                    <ul className="shop-list">{renderRows(planned)}</ul>
-                </section>
-            )}
+            {view === "stock" && (
+                <>
+                    {loadState === "ready" && inStock.length === 0 && usedUp.length === 0 && (
+                        <p className="shop-empty">
+                            Im Vorrat ist noch nichts. Gekaufte Artikel landen hier nach „Einkauf
+                            abschließen“. Du kannst Vorräte oben auch direkt eintragen.
+                        </p>
+                    )}
 
-            {bought.length > 0 && (
-                <section className="shop-group" aria-labelledby="shop-bought">
-                    <h3 id="shop-bought" className="shop-group__title">
-                        Gekauft <span className="shop-group__count">{bought.length}</span>
-                    </h3>
-                    <ul className="shop-list">{renderRows(bought)}</ul>
-                </section>
+                    {inStock.length > 0 && (
+                        <section className="shop-group" aria-labelledby="shop-stock">
+                            <h3 id="shop-stock" className="shop-group__title">
+                                Im Vorrat <span className="shop-group__count">{inStock.length}</span>
+                            </h3>
+                            <ul className="shop-list">{renderRows(inStock)}</ul>
+                        </section>
+                    )}
+
+                    {usedUp.length > 0 && (
+                        <section className="shop-group" aria-labelledby="shop-used-up">
+                            <h3 id="shop-used-up" className="shop-group__title">
+                                Aufgebraucht <span className="shop-group__count">{usedUp.length}</span>
+                            </h3>
+                            <ul className="shop-list">{renderRows(usedUp)}</ul>
+                        </section>
+                    )}
+                </>
             )}
         </section>
     );
