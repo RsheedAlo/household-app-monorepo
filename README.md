@@ -33,6 +33,16 @@ SUPABASE_URL="DEINE_SUPABASE_PROJEKT_URL"
 SUPABASE_KEY="DEIN_SUPABASE_ANON_KEY"
 ```
 
+### Supabase lokal per Docker (empfohlen für Entwicklung und Demo)
+
+Das frühere Cloud-Projekt ist pausiert. Lokal läuft Supabase in Docker. Die Migrationen unter `supabase/migrations/` sind die einzige Quelle für das Datenbankschema.
+
+1. Docker Desktop starten.
+2. Im Repo-Root `npx supabase start` ausführen. Beim ersten Mal werden die Images geladen. Nicht benötigte Dienste lassen sich auslassen: `npx supabase start -x storage-api,imgproxy,edge-runtime,logflare,vector,supavisor,mailpit,realtime`.
+3. `npx supabase status -o env` zeigt `API_URL`, `ANON_KEY` und `SERVICE_ROLE_KEY`. Daraus `backend/.env` anlegen, Vorlage ist `backend/.env.example`. Die Datei wird nicht committet.
+4. Backend und Frontend wie unten starten. Die Datenbank-Oberfläche (Studio) läuft auf http://127.0.0.1:54323.
+5. Zurücksetzen: `npx supabase db reset` wendet alle Migrationen neu an und löscht die lokalen Daten. Beenden: `npx supabase stop`.
+
 ### Docker Compose
 
 ```bash
@@ -61,5 +71,5 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ## Status
 
-Dieses Repository enthaelt bewusst nur die technische Basisstruktur. Fachlogik fuer `[Kanban]`, `[Einkauf/Vorrat]`, `[Kalender]` und `[Auth]` ist noch nicht implementiert.
+Umgesetzt sind Nutzerverwaltung, Haushalte, `[Kanban]`, `[Kalender]` und `[Einkauf/Vorrat]`. Entscheidungen stehen unter `docs/decisions/`.
 
