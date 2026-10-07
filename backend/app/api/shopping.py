@@ -4,11 +4,22 @@ Jeder Endpunkt verlangt ein gültiges JWT und prüft die Haushaltsmitgliedschaft
 Die Benutzer-ID kommt nie vom Client.
 """
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
+from fastapi.concurrency import run_in_threadpool
 
 from app.core.access import HouseholdAccess, is_household_member, require_household_member
 from app.core.security import get_current_user
@@ -20,6 +31,7 @@ from app.models.shopping import (
     ShoppingItemCreate,
     ShoppingItemUpdate,
 )
+from app.services import realtime
 from app.services.shopping import InvalidTransition, plan_status_change
 
 router = APIRouter()
@@ -27,6 +39,11 @@ router = APIRouter()
 TABLE = "shopping_items"
 NOT_FOUND = "Artikel nicht gefunden"
 CONFLICT = "Der Artikel wurde zwischenzeitlich geändert. Lade die Liste neu."
+
+# Schließcodes der WebSocket-Verbindung (4000er sind für Anwendungen frei)
+WS_UNAUTHORIZED = 4401
+WS_FORBIDDEN = 4403
+WS_TIMEOUT = 4408
 
 
 def _now() -> str:
@@ -73,6 +90,7 @@ def list_items(
 )
 def create_item(
     item_in: ShoppingItemCreate,
+    background: BackgroundTasks,
     access: HouseholdAccess = Depends(require_household_member),
 ):
     payload = item_in.model_dump()
@@ -84,6 +102,7 @@ def create_item(
     if not response.data:
         raise HTTPException(status_code=500, detail="Artikel konnte nicht gespeichert werden")
 
+    background.add_task(realtime.hub.notify_changed, access.household_id)
     return response.data[0]
 
 
@@ -91,6 +110,7 @@ def create_item(
 def update_item(
     item_id: UUID,
     item_in: ShoppingItemUpdate,
+    background: BackgroundTasks,
     current_user: Any = Depends(get_current_user),
 ):
     current = _load_item(item_id, str(current_user.id))
@@ -129,6 +149,7 @@ def update_item(
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=CONFLICT)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
 
+    background.add_task(realtime.hub.notify_changed, current["household_id"])
     return response.data[0]
 
 
@@ -137,7 +158,10 @@ def update_item(
     response_model=CheckoutResult,
     summary="Einkauf abschließen",
 )
-def checkout(access: HouseholdAccess = Depends(require_household_member)):
+def checkout(
+    background: BackgroundTasks,
+    access: HouseholdAccess = Depends(require_household_member),
+):
     """Alle abgehakten Artikel wandern in den Vorrat (`bought` wird `in_stock`)."""
     response = (
         supabase.table(TABLE)
@@ -146,7 +170,10 @@ def checkout(access: HouseholdAccess = Depends(require_household_member)):
         .eq("status", "bought")
         .execute()
     )
-    return {"moved": len(response.data or [])}
+    moved = len(response.data or [])
+    if moved:
+        background.add_task(realtime.hub.notify_changed, access.household_id)
+    return {"moved": moved}
 
 
 @router.delete(
@@ -154,6 +181,72 @@ def checkout(access: HouseholdAccess = Depends(require_household_member)):
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Artikel löschen",
 )
-def delete_item(item_id: UUID, current_user: Any = Depends(get_current_user)):
-    _load_item(item_id, str(current_user.id))
+def delete_item(
+    item_id: UUID,
+    background: BackgroundTasks,
+    current_user: Any = Depends(get_current_user),
+):
+    current = _load_item(item_id, str(current_user.id))
     supabase.table(TABLE).delete().eq("id", str(item_id)).execute()
+    background.add_task(realtime.hub.notify_changed, current["household_id"])
+
+
+async def _authenticate(websocket: WebSocket, household_id: str) -> bool:
+    """Erste Nachricht muss `{"token": "..."}` sein. Prüft Token und Haushaltsmitgliedschaft.
+
+    Das Token kommt bewusst nicht in die URL, denn URLs landen in Logs.
+    """
+    try:
+        message = await asyncio.wait_for(
+            websocket.receive_json(), timeout=realtime.AUTH_TIMEOUT_SECONDS
+        )
+    except asyncio.TimeoutError:
+        await websocket.close(code=WS_TIMEOUT)
+        return False
+    except (WebSocketDisconnect, ValueError):
+        return False
+
+    token = message.get("token") if isinstance(message, dict) else None
+    if not isinstance(token, str) or not token:
+        await websocket.close(code=WS_UNAUTHORIZED)
+        return False
+
+    try:
+        user_response = await run_in_threadpool(supabase.auth.get_user, token)
+        user_id = str(user_response.user.id)
+    except Exception:
+        await websocket.close(code=WS_UNAUTHORIZED)
+        return False
+
+    if not await run_in_threadpool(is_household_member, household_id, user_id):
+        await websocket.close(code=WS_FORBIDDEN)
+        return False
+
+    return True
+
+
+@router.websocket("/{household_id}/ws")
+async def live_updates(websocket: WebSocket, household_id: UUID):
+    """Meldet allen Mitgliedern eines Haushalts, wenn sich die Liste geändert hat.
+
+    Ablauf: verbinden, Token senden, `ready` abwarten. Danach kommt bei jeder Änderung
+    `{"type": "changed"}`, die Clients laden dann die Liste neu. Ein Text `ping` wird mit
+    `{"type": "pong"}` beantwortet (Keepalive).
+    """
+    await websocket.accept()
+    household = str(household_id)
+
+    if not await _authenticate(websocket, household):
+        return
+
+    realtime.hub.add(household, websocket)
+    try:
+        await websocket.send_json({"type": "ready"})
+        while True:
+            text = await websocket.receive_text()
+            if text == "ping":
+                await websocket.send_json({"type": "pong"})
+    except WebSocketDisconnect:
+        pass
+    finally:
+        realtime.hub.remove(household, websocket)
