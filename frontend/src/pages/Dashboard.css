@@ -209,23 +209,17 @@
   padding: 20px 14px 30px 30px;
 }
 
-.dash-photo {
+.dash-hero__art > .dash-par:first-child {
   width: 100%;
-  max-width: 520px;
-  margin: 0;
-  border: 6px solid #fff;
-  border-radius: 36px 36px 120px 36px;
-  background: #cdd9ff;
-  box-shadow: 0 28px 56px rgba(7, 18, 68, 0.38);
-  overflow: hidden;
-  rotate: 2.5deg;
+  max-width: 500px;
 }
 
-.dash-photo img {
+.dash-scene {
   display: block;
   width: 100%;
-  height: clamp(230px, 28vw, 330px);
-  object-fit: cover;
+  max-width: 500px;
+  height: auto;
+  filter: drop-shadow(0 24px 36px rgba(7, 18, 68, 0.34));
 }
 
 .dash-sticker {
@@ -382,6 +376,11 @@
     padding: 12px 10px 28px 10px;
   }
 
+  .dash-hero__art:has(.dash-par--card) {
+    min-height: 340px;
+    padding-top: 96px;
+  }
+
   .dash-par--card {
     top: 2%;
     width: min(220px, 64%);
@@ -404,7 +403,7 @@
 
   .dash-tile--shop {
     grid-row: span 2;
-    min-height: 480px;
+    min-height: 540px;
   }
 }
 
@@ -414,7 +413,10 @@
   align-items: flex-end;
   min-height: 230px;
   border-radius: var(--hh-radius-lg);
-  background: rgb(var(--tile-rgb));
+  background:
+    radial-gradient(circle at 92% 8%, rgba(255, 255, 255, 0.12) 0 26%, transparent 26.5%),
+    radial-gradient(circle at 4% 100%, rgba(0, 0, 0, 0.16) 0 30%, transparent 30.5%),
+    rgb(var(--tile-rgb));
   color: #fff;
   text-decoration: none;
   overflow: hidden;
@@ -424,18 +426,18 @@
 }
 
 .dash-tile--shop {
-  --tile-rgb: 6, 78, 59;
+  --tile-rgb: 5, 110, 82;
   --tile-hex: #064e3b;
-  min-height: 450px;
+  min-height: 540px;
 }
 
 .dash-tile--tasks {
-  --tile-rgb: 120, 53, 15;
-  --tile-hex: #78350f;
+  --tile-rgb: 164, 82, 14;
+  --tile-hex: #7a3a07;
 }
 
 .dash-tile--calendar {
-  --tile-rgb: 20, 52, 154;
+  --tile-rgb: 29, 78, 216;
   --tile-hex: #14349a;
 }
 
@@ -443,27 +445,25 @@
   outline-color: var(--hh-sun);
 }
 
-.dash-tile__photo {
+/* Gezeichnete Grafik: oben rechts bzw. mittig über dem Text, hinter den Inhalten */
+.dash-tile__art {
   position: absolute;
-  inset: 0;
-  z-index: -2;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  z-index: -1;
+  top: 14px;
+  right: 70px;
+  width: min(150px, 42%);
+  height: auto;
+  transform-origin: 70% 60%;
   transition: transform 500ms var(--hh-ease-out);
 }
 
-.dash-tile__shade {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: linear-gradient(
-    to top,
-    rgba(var(--tile-rgb), 0.97) 0%,
-    rgba(var(--tile-rgb), 0.9) 42%,
-    rgba(var(--tile-rgb), 0.4) 72%,
-    rgba(var(--tile-rgb), 0.04) 100%
-  );
+.dash-tile--shop .dash-tile__art {
+  top: 26px;
+  right: 0;
+  left: 0;
+  width: min(290px, 64%);
+  margin: 0 auto;
+  transform-origin: 50% 50%;
 }
 
 .dash-tile__go {
@@ -559,8 +559,8 @@
     transform: translateY(-4px);
   }
 
-  .dash-tile:hover .dash-tile__photo {
-    transform: scale(1.05);
+  .dash-tile:hover .dash-tile__art {
+    transform: scale(1.06) rotate(-2deg);
   }
 
   .dash-tile:hover .dash-tile__go {
@@ -759,14 +759,14 @@
 
   .dash-par,
   .dash-tile,
-  .dash-tile__photo,
+  .dash-tile__art,
   .dash-tile__go,
   .dash-btn {
     transition: none;
   }
 
   .dash-tile:hover,
-  .dash-tile:hover .dash-tile__photo,
+  .dash-tile:hover .dash-tile__art,
   .dash-tile:hover .dash-tile__go,
   .dash-tile:active,
   .dash-btn:active {

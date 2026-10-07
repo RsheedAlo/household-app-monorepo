@@ -14,6 +14,7 @@ import { API_URL } from "../config";
 import HouseholdsSection from "../components/HouseholdsSection";
 import { EmptyHome } from "../components/art/EmptyArt";
 import HeroShapes from "../components/art/HeroShapes";
+import { BasketScene, CalendarTileArt, ShopTileArt, TasksTileArt } from "../components/art/Scenes";
 import { Leaf, Lemon, Tomato } from "../components/art/Stickers";
 import usePointerParallax from "../hooks/usePointerParallax";
 import { plural, quantityLabel } from "../lib/shoppingFormat";
@@ -87,19 +88,10 @@ function heroLead({ isLoggedIn, hasHousehold, summary }) {
     return "Einkauf, Aufgaben und Termine eures Haushalts an einem Ort.";
 }
 
-function Tile({ to, className, photo, Icon, title, delay, children }) {
+function Tile({ to, className, Art, Icon, title, delay, children }) {
     return (
         <Link to={to} className={`dash-tile ${className} dash-rise`} style={{ "--delay": delay }}>
-            <img
-                className="dash-tile__photo"
-                src={photo}
-                alt=""
-                width="1024"
-                height="683"
-                loading="lazy"
-                decoding="async"
-            />
-            <span className="dash-tile__shade" aria-hidden="true" />
+            <Art className="dash-tile__art" />
             <span className="dash-tile__go" aria-hidden="true">
                 <ArrowUpRight weight="bold" />
             </span>
@@ -221,16 +213,7 @@ export default function Dashboard({
 
                 <div className="dash-hero__art">
                     <div className="dash-par" style={{ "--depth": 8 }}>
-                        <figure className="dash-photo dash-pop" style={{ "--delay": "160ms" }}>
-                            <img
-                                src="/images/basket-produce.webp"
-                                alt=""
-                                width="1024"
-                                height="683"
-                                fetchpriority="high"
-                                decoding="async"
-                            />
-                        </figure>
+                        <BasketScene className="dash-scene dash-pop" style={{ "--delay": "160ms" }} />
                     </div>
 
                     <div className="dash-par dash-par--tomato" style={{ "--depth": 24 }}>
@@ -286,7 +269,7 @@ export default function Dashboard({
                 <Tile
                     to="/shopping"
                     className="dash-tile--shop"
-                    photo="/images/wire-basket-onions.webp"
+                    Art={ShopTileArt}
                     Icon={ShoppingCartSimple}
                     title="Einkauf & Vorrat"
                     delay="240ms"
@@ -316,7 +299,7 @@ export default function Dashboard({
                 <Tile
                     to="/kanban"
                     className="dash-tile--tasks"
-                    photo="/images/diary-pen.webp"
+                    Art={TasksTileArt}
                     Icon={Kanban}
                     title="Aufgaben & Planung"
                     delay="320ms"
@@ -329,7 +312,7 @@ export default function Dashboard({
                 <Tile
                     to="/calendar"
                     className="dash-tile--calendar"
-                    photo="/images/planner-month.webp"
+                    Art={CalendarTileArt}
                     Icon={CalendarDots}
                     title="Kalender & Termine"
                     delay="400ms"

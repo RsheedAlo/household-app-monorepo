@@ -15,6 +15,7 @@ import {
 
 import { API_URL } from "../config";
 import { EmptyBasket, EmptyShelf } from "../components/art/EmptyArt";
+import { ShopHeroArt } from "../components/art/Scenes";
 import useFlip from "../hooks/useFlip";
 import { formatNumber, quantityLabel } from "../lib/shoppingFormat";
 import "../theme/fonts";
@@ -713,23 +714,7 @@ export default function ShoppingBoard({ userId, activeHousehold, token }) {
     return (
         <div className="shop">
             <header className="shop-hero">
-                <div className="shop-hero__photos" aria-hidden="true">
-                    <img
-                        className={`shop-hero__photo${view === "list" ? " is-on" : ""}`}
-                        src="/images/wire-basket-onions.webp"
-                        alt=""
-                        width="1024"
-                        height="727"
-                    />
-                    <img
-                        className={`shop-hero__photo${view === "stock" ? " is-on" : ""}`}
-                        src="/images/market-greens.webp"
-                        alt=""
-                        width="1024"
-                        height="681"
-                    />
-                </div>
-                <div className="shop-hero__scrim" aria-hidden="true" />
+                <ShopHeroArt view={view} />
 
                 <div className="shop-hero__copy">
                     <p className="shop-hero__house">

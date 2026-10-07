@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter as Router, Link, Route, Routes } from "react-router-dom";
+import { BrowserRouter as Router, Link, NavLink, Route, Routes } from "react-router-dom";
+import { Bell, GearSix, House, SignIn, SignOut, SquaresFour, UsersThree } from "@phosphor-icons/react";
 
 import { API_URL } from "./config";
 import Dashboard from "./pages/Dashboard";
@@ -11,6 +12,8 @@ import Register from "./pages/Register";
 import KanbanBoard from "./pages/KanbanBoard";
 import CalendarBoard from "./pages/CalendarBoard";
 import ShoppingBoard from "./pages/ShoppingBoard";
+import "./theme/fonts";
+import "./theme/topbar.css";
 
 export default function App() {
     const [userId, setUserId] = useState(localStorage.getItem("userId") || null);
@@ -84,45 +87,61 @@ export default function App() {
     return (
         <Router>
             <div className="app-frame">
-                <header className="topbar">
-                    <div className="topbar__brand">
-                        <Link to="/" className="brand-link">
-                            Household App
+                <header className="hh-bar">
+                    <div className="hh-bar__inner">
+                        <Link to="/" className="hh-brand" aria-label="Household App, zur Startseite">
+                            <span className="hh-brand__mark" aria-hidden="true">
+                                <House weight="fill" />
+                            </span>
+                            <span className="hh-brand__name">Household</span>
                         </Link>
-                        <p className="brand-subtitle">Gemeinsame Haushalte klar verwalten.</p>
-                    </div>
 
-                    <nav className="topbar__nav" aria-label="Hauptnavigation">
-                        {userId ? (
-                            <>
-                                <Link to="/" className="nav-link">
-                                    Dashboard
-                                </Link>
-                                <Link to="/households" className="nav-link">
-                                    Haushalte
-                                </Link>
-                                <Link to="/settings" className="nav-link nav-link--primary">
-                                    Verwalten
-                                </Link>
-                                <Link to="/notifications" className="nav-link nav-link--inbox" title="Benachrichtigungen">
-                                    <span className="bell-icon" aria-hidden="true">🔔</span>
-                                    {notificationCount > 0 && <span className="nav-dot" aria-hidden="true" />}
-                                </Link>
-                                <button type="button" onClick={() => setUserId(null)} className="nav-link nav-link--ghost">
-                                    Abmelden
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <Link to="/" className="nav-link">
-                                    Start
-                                </Link>
-                                <Link to="/login" className="nav-link nav-link--primary">
-                                    Anmelden
-                                </Link>
-                            </>
-                        )}
-                    </nav>
+                        <nav className="hh-nav" aria-label="Hauptnavigation">
+                            {userId ? (
+                                <>
+                                    <NavLink to="/" end className="hh-nav__link hh-nav__link--icon-only-sm">
+                                        <SquaresFour weight="bold" aria-hidden="true" />
+                                        <span className="hh-nav__label--sm-hide">Dashboard</span>
+                                    </NavLink>
+                                    <NavLink to="/households" className="hh-nav__link hh-nav__link--icon-only-sm">
+                                        <UsersThree weight="bold" aria-hidden="true" />
+                                        <span className="hh-nav__label--sm-hide">Haushalte</span>
+                                    </NavLink>
+                                    <NavLink to="/settings" className="hh-nav__link hh-nav__link--icon-only-sm">
+                                        <GearSix weight="bold" aria-hidden="true" />
+                                        <span className="hh-nav__label--sm-hide">Verwalten</span>
+                                    </NavLink>
+                                    <NavLink
+                                        to="/notifications"
+                                        className="hh-nav__link hh-nav__link--icon-only-sm"
+                                        title="Benachrichtigungen"
+                                    >
+                                        <Bell weight="bold" aria-hidden="true" />
+                                        <span className="hh-nav__label--sm-hide">Benachrichtigungen</span>
+                                        {notificationCount > 0 && <span className="hh-nav__dot" aria-hidden="true" />}
+                                    </NavLink>
+                                    <button
+                                        type="button"
+                                        onClick={() => setUserId(null)}
+                                        className="hh-nav__link hh-nav__link--icon-only-sm"
+                                    >
+                                        <SignOut weight="bold" aria-hidden="true" />
+                                        <span className="hh-nav__label--sm-hide">Abmelden</span>
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <NavLink to="/" end className="hh-nav__link">
+                                        Start
+                                    </NavLink>
+                                    <NavLink to="/login" className="hh-nav__link hh-nav__link--cta">
+                                        <SignIn weight="bold" aria-hidden="true" />
+                                        Anmelden
+                                    </NavLink>
+                                </>
+                            )}
+                        </nav>
+                    </div>
                 </header>
 
                 <main className="page-shell">
