@@ -34,6 +34,55 @@
   margin: 0;
 }
 
+/* Umschalter Einkaufsliste / Vorrat */
+
+.shop-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+
+.shop-tab {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-soft);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.shop-tab[aria-pressed="true"] {
+  background: var(--surface-strong);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(23, 32, 51, 0.14);
+}
+
+.shop-tab__count {
+  margin-left: 6px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 720px) {
+  .shop-tabs {
+    grid-template-columns: repeat(2, minmax(9rem, auto));
+    align-self: flex-start;
+  }
+}
+
+.shop-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
 /* Eingabezeilen (Hinzufügen und Bearbeiten) */
 
 .shop-add,
@@ -164,9 +213,23 @@
   white-space: nowrap;
 }
 
+.shop-row__check--static {
+  cursor: default;
+}
+
+.shop-row__hint {
+  flex-basis: 100%;
+  color: var(--text-soft);
+  font-size: 0.875rem;
+}
+
 .shop-row--done .shop-row__name {
   color: var(--text-soft);
   text-decoration: line-through;
+}
+
+.shop-row--muted .shop-row__name {
+  color: var(--text-soft);
 }
 
 .shop-row__actions {
@@ -190,10 +253,48 @@
   color: var(--danger);
 }
 
+.shop-btn--accent {
+  color: var(--primary);
+}
+
+/* Leiste "Einkauf abschließen": bleibt beim Scrollen am unteren Rand sichtbar */
+
+.shop-checkout {
+  position: sticky;
+  bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.shop-checkout__text {
+  margin: 0;
+  font-weight: 600;
+}
+
+.shop-checkout__hint {
+  display: block;
+  color: var(--text-soft);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .shop-btn:hover {
     background: var(--surface-muted);
     color: var(--text);
+  }
+
+  .shop-btn--accent:hover {
+    background: var(--primary-soft);
+    color: var(--primary);
   }
 
   .shop-btn--danger:hover {
