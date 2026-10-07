@@ -132,6 +132,7 @@ export default function App() {
                             element={
                                 <Dashboard
                                     userId={userId}
+                                    token={token}
                                     households={households}
                                     activeHousehold={activeHousehold}
                                     setActiveHousehold={setActiveHousehold}
