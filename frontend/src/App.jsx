@@ -10,6 +10,7 @@ import Notifications from "./pages/Notifications";
 import Register from "./pages/Register";
 import KanbanBoard from "./pages/KanbanBoard";
 import CalendarBoard from "./pages/CalendarBoard";
+import ShoppingBoard from "./pages/ShoppingBoard";
 
 export default function App() {
     const [userId, setUserId] = useState(localStorage.getItem("userId") || null);
@@ -187,6 +188,16 @@ export default function App() {
                             path="/calendar"
                             element={
                                 <CalendarBoard
+                                    userId={userId}
+                                    activeHousehold={activeHousehold}
+                                    token={token}
+                                />
+                            }
+                        />
+                        <Route
+                            path="/shopping"
+                            element={
+                                <ShoppingBoard
                                     userId={userId}
                                     activeHousehold={activeHousehold}
                                     token={token}
